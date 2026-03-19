@@ -1,8 +1,8 @@
 import { NavLink } from "react-router-dom";
-import { Briefcase, Bookmark, CheckCircle2, BarChart3, Settings } from "lucide-react";
+import { Search, Bookmark, CheckCircle2, BarChart3, Settings } from "lucide-react";
 
 const items = [
-  { to: "/dashboard", label: "Jobs", Icon: Briefcase },
+  { to: "/dashboard", label: "Search", Icon: Search },
   { to: "/saved", label: "Saved", Icon: Bookmark },
   { to: "/applied", label: "Applied", Icon: CheckCircle2 },
   { to: "/insights", label: "Insights", Icon: BarChart3 },

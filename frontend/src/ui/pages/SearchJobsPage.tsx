@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { Search, Loader2 } from "lucide-react";
 import { JobCard } from "../components/JobCard";
 import { JobDetailPanel } from "../components/JobDetailPanel";
+import { PreferencesModal } from "../components/PreferencesModal";
 import { useJobs } from "../../hooks/useJobs";
 import { useAuth } from "../../context/AuthContext";
 import { supabase } from "../../lib/supabase";
@@ -14,6 +15,16 @@ const EXPERIENCE = ["Intern/New Grad", "Entry", "Mid", "Senior"];
 const WORK_SETTING = ["Remote", "Hybrid", "On-site"];
 const DATE_POSTED = ["Last 24h", "Last week", "Last month"];
 const FIELDS = ["AI/ML", "Software Eng", "Cybersecurity", "Cloud", "Data", "DevOps", "Full Stack", "Other"];
+
+function mapExperienceToFilter(level?: string): string {
+  if (!level) return "";
+  const t = level.toLowerCase();
+  if (t.includes("intern") || t.includes("new grad")) return "Intern/New Grad";
+  if (t.includes("entry")) return "Entry";
+  if (t.includes("mid")) return "Mid";
+  if (t.includes("senior") || t.includes("lead")) return "Senior";
+  return "";
+}
 
 export function SearchJobsPage() {
   const { user } = useAuth();
@@ -33,18 +44,66 @@ export function SearchJobsPage() {
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [showPrefsPrompt, setShowPrefsPrompt] = useState(false);
+  const [prefsModalOpen, setPrefsModalOpen] = useState(false);
+  const [targetField, setTargetField] = useState<string>("Software Engineer");
+  const [preferredLocation, setPreferredLocation] = useState<string>("United States");
+  const [experienceLevel, setExperienceLevel] = useState<string>("Entry Level");
+  const [workSettingPref, setWorkSettingPref] = useState<string>("");
 
   const jobType = jobTypes.size > 0 ? [...jobTypes][0] : "";
-  const workSettingVal = workSetting.size > 0 ? [...workSetting][0] : "";
-  const experienceVal = experience.size > 0 ? [...experience][0] : "";
+  const workSettingVal = workSetting.size > 0 ? [...workSetting][0] : workSettingPref || "";
+  const experienceVal = experience.size > 0 ? [...experience][0] : mapExperienceToFilter(experienceLevel) || "";
+
+  useEffect(() => {
+    if (!user?.id) return;
+    const load = async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("preferred_categories, target_field, preferred_location, experience_level, work_setting")
+        .eq("id", user.id)
+        .single();
+      if (data) {
+        if (data.preferred_location) setPreferredLocation(data.preferred_location as string);
+        if (data.experience_level) setExperienceLevel(data.experience_level as string);
+        if (data.work_setting) setWorkSettingPref(data.work_setting as string);
+      }
+      let hasField = false;
+      let hasExperience = false;
+      if (data?.preferred_categories?.length) {
+        setTargetField((data.preferred_categories as string[])[0]);
+        hasField = true;
+      } else if (data?.target_field) {
+        setTargetField(data.target_field as string);
+        hasField = true;
+      } else if ((user as { user_metadata?: { target_field?: string } }).user_metadata?.target_field) {
+        const tf = (user as { user_metadata?: { target_field?: string } }).user_metadata!.target_field!;
+        setTargetField(tf);
+        hasField = true;
+      }
+      if (data?.experience_level) hasExperience = true;
+      setShowPrefsPrompt(!hasField || !hasExperience);
+      if (hasField && !q) {
+        const defaultQuery = data?.target_field || (data?.preferred_categories as string[])?.[0] || "Software Engineer";
+        setSearchQuery(defaultQuery);
+        setQuery(defaultQuery);
+      }
+    };
+    load();
+  }, [user?.id, q]);
 
   const { jobs, loading, error, refetch } = useJobs({
     query: searchQuery,
-    field: field || undefined,
+    field: field || targetField || undefined,
+    location: preferredLocation || undefined,
     jobType: jobType || undefined,
     workSetting: workSettingVal || undefined,
     datePosted: datePosted || undefined,
     experience: experienceVal || undefined,
+    userProfile: {
+      target_field: targetField,
+      skills: (user as { user_metadata?: Record<string, unknown> })?.user_metadata?.skills as string[] | undefined,
+    },
   });
 
   const toggleFilter = (set: Set<string>, key: string, updater: (s: Set<string>) => void) => {
@@ -123,6 +182,37 @@ export function SearchJobsPage() {
 
   return (
     <div className="flex gap-6">
+      <PreferencesModal
+        open={prefsModalOpen}
+        onClose={() => setPrefsModalOpen(false)}
+        initialField={targetField}
+        initialExperience={experienceLevel}
+        initialLocation={preferredLocation}
+        initialWorkSetting={workSettingPref}
+        onSave={async ({ targetField: tf, experienceLevel: exp, preferredLocation: loc, workSetting: ws }) => {
+          if (!user?.id) return;
+          setTargetField(tf);
+          setExperienceLevel(exp);
+          setPreferredLocation(loc);
+          setWorkSettingPref(ws);
+          setShowPrefsPrompt(false);
+          if (!query) {
+            setSearchQuery(tf || "Software Engineer");
+            setQuery(tf || "Software Engineer");
+          }
+          await supabase.from("profiles").upsert({
+            id: user.id,
+            target_field: tf,
+            preferred_categories: [tf],
+            preferred_location: loc || null,
+            experience_level: exp || null,
+            work_setting: ws || null,
+            updated_at: new Date().toISOString(),
+          });
+          refetch();
+        }}
+      />
+
       <aside className="hidden w-[240px] shrink-0 space-y-4 lg:block">
         <div className="rounded-card border bg-bg-card p-4" style={{ borderColor: "var(--border)" }}>
           <h3 className="mb-3 text-sm font-semibold text-text-primary">Job Type</h3>
@@ -180,7 +270,23 @@ export function SearchJobsPage() {
       </aside>
 
       <div className="flex-1 min-w-0 space-y-4">
-        <h1 className="font-heading text-xl font-semibold text-text-primary">Search Jobs</h1>
+        {showPrefsPrompt && (
+          <div
+            className="rounded-card border p-4"
+            style={{ borderColor: "var(--border)", background: "var(--bg-hero)" }}
+          >
+            <p className="text-sm text-text-primary">Set your job preferences to see personalized results</p>
+            <button
+              type="button"
+              onClick={() => setPrefsModalOpen(true)}
+              className="mt-2 inline-block rounded-button bg-accent px-4 py-2 text-sm font-semibold text-white"
+            >
+              Set preferences
+            </button>
+          </div>
+        )}
+
+        <h1 className="font-heading text-xl font-semibold text-text-primary">Jobs</h1>
 
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <div className="relative flex-1">

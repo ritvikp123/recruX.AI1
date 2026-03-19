@@ -3,14 +3,12 @@ import ReactDOM from "react-dom/client";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import "./styles.css";
 import { Layout } from "./ui/Layout";
-import { RecommendedPage } from "./ui/pages/RecommendedPage";
 import { SavedPage } from "./ui/pages/SavedPage";
 import { AppliedPage } from "./ui/pages/AppliedPage";
 import { InsightsPage } from "./ui/pages/InsightsPage";
 import { SettingsPage } from "./ui/pages/SettingsPage";
 import { SearchJobsPage } from "./ui/pages/SearchJobsPage";
-import { ResumeUploadPage } from "./ui/pages/ResumeUploadPage";
-import { ResumeMatchPage } from "./ui/pages/ResumeMatchPage";
+import { ResumePage } from "./ui/pages/ResumePage";
 import { RecentJobsPage } from "./ui/pages/RecentJobsPage";
 import { AutoApplyPage } from "./ui/pages/AutoApplyPage";
 import { LandingPage } from "./pages/LandingPage";
@@ -52,41 +50,23 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <Layout>
-              <RecommendedPage />
-            </Layout>
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/dashboard/search"
-        element={
-          <ProtectedRoute>
-            <Layout>
               <SearchJobsPage />
             </Layout>
           </ProtectedRoute>
         }
       />
+      <Route path="/dashboard/search" element={<Navigate to="/dashboard" replace />} />
       <Route
         path="/dashboard/resume"
         element={
           <ProtectedRoute>
             <Layout>
-              <ResumeUploadPage />
+              <ResumePage />
             </Layout>
           </ProtectedRoute>
         }
       />
-      <Route
-        path="/dashboard/resumematch"
-        element={
-          <ProtectedRoute>
-            <Layout>
-              <ResumeMatchPage />
-            </Layout>
-          </ProtectedRoute>
-        }
-      />
+      <Route path="/dashboard/resumematch" element={<Navigate to="/dashboard/resume" replace />} />
       <Route
         path="/dashboard/recent"
         element={

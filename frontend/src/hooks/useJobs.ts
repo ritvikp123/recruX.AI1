@@ -169,8 +169,17 @@ export function useJobs(filters: JobsFilters) {
       });
       const normalized = results.map((j) => normalizeJob(j, filters.userProfile));
       setJobs(normalized);
-    } catch (err) {
-      setError("Failed to load jobs. Please try again.");
+    } catch (err: unknown) {
+      const msg = err && typeof err === "object" && "response" in err
+        ? (err as { response?: { data?: { message?: string } } }).response?.data?.message || ""
+        : "";
+      if (msg.toLowerCase().includes("quota") || msg.toLowerCase().includes("exceeded")) {
+        setError(
+          "JSearch API quota exceeded. The free plan allows 200 requests/month. Upgrade at rapidapi.com or wait for the quota to reset."
+        );
+      } else {
+        setError("Failed to load jobs. Please try again.");
+      }
       console.error(err);
       setJobs([]);
     } finally {

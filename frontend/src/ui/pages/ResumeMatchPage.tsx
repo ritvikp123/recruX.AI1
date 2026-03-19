@@ -76,7 +76,11 @@ function ScoreRingDisplay({ score }: { score: number }) {
   );
 }
 
-export function ResumeMatchPage() {
+interface ResumeMatchPageProps {
+  onGoToUpload?: () => void;
+}
+
+export function ResumeMatchPage({ onGoToUpload }: ResumeMatchPageProps = {}) {
   const { user } = useAuth();
   const [jobDescription, setJobDescription] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -201,9 +205,6 @@ export function ResumeMatchPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="font-heading text-xl font-semibold text-text-primary">
-        Resume Match
-      </h1>
       <p className="text-sm text-text-secondary">
         See how well your resume matches any job
       </p>
@@ -218,14 +219,24 @@ export function ResumeMatchPage() {
             Upload your resume first
           </p>
           <p className="mt-1 text-sm text-text-muted">
-            Go to the Resume page to upload your resume before analyzing matches.
+            Upload your resume in the My Resume tab before analyzing matches.
           </p>
-          <Link
-            to="/dashboard/resume"
-            className="mt-4 inline-block rounded-button bg-accent px-4 py-2 text-sm font-semibold text-white"
-          >
-            Upload Resume
-          </Link>
+          {onGoToUpload ? (
+            <button
+              type="button"
+              onClick={onGoToUpload}
+              className="mt-4 inline-block rounded-button bg-accent px-4 py-2 text-sm font-semibold text-white"
+            >
+              Upload Resume
+            </button>
+          ) : (
+            <Link
+              to="/dashboard/resume"
+              className="mt-4 inline-block rounded-button bg-accent px-4 py-2 text-sm font-semibold text-white"
+            >
+              Upload Resume
+            </Link>
+          )}
         </div>
       )}
 
@@ -326,12 +337,22 @@ export function ResumeMatchPage() {
                   ))}
                 </div>
               )}
-              <Link
-                to="/dashboard/resume"
-                className="mt-4 inline-block text-sm font-medium text-primary hover:underline"
-              >
-                Update resume
-              </Link>
+              {onGoToUpload ? (
+                <button
+                  type="button"
+                  onClick={onGoToUpload}
+                  className="mt-4 inline-block text-sm font-medium text-primary hover:underline"
+                >
+                  Update resume
+                </button>
+              ) : (
+                <Link
+                  to="/dashboard/resume"
+                  className="mt-4 inline-block text-sm font-medium text-primary hover:underline"
+                >
+                  Update resume
+                </Link>
+              )}
             </div>
           </div>
 

@@ -8,7 +8,11 @@ import { Toast } from "../../components/Toast";
 const MAX_SIZE = 5 * 1024 * 1024; // 5MB
 const ACCEPT = ".pdf,.docx,.doc";
 
-export function ResumeUploadPage() {
+interface ResumeUploadPageProps {
+  hideTitle?: boolean;
+}
+
+export function ResumeUploadPage({ hideTitle }: ResumeUploadPageProps = {}) {
   const { user } = useAuth();
   const [file, setFile] = useState<File | null>(null);
   const [filename, setFilename] = useState<string | null>(null);
@@ -161,7 +165,7 @@ export function ResumeUploadPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="font-heading text-xl font-semibold text-text-primary">My Resume</h1>
+      {!hideTitle && <h1 className="font-heading text-xl font-semibold text-text-primary">My Resume</h1>}
 
       <div className="grid gap-6 lg:grid-cols-2">
         {/* LEFT – Upload area */}

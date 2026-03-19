@@ -1,8 +1,6 @@
 import {
-  Briefcase,
-  FileText,
   Search,
-  BarChart3,
+  FileText,
   Target,
   Clock,
   Zap,
@@ -22,7 +20,7 @@ function IconButton({
   badge,
 }: {
   to?: string;
-  icon: typeof Briefcase;
+  icon: typeof Search;
   label: string;
   badge?: string;
 }) {
@@ -83,10 +81,8 @@ export function IconSidebar() {
         R
       </div>
       <div className="flex flex-1 flex-col items-center gap-3">
-        <IconButton to="/dashboard" icon={Briefcase} label="Jobs" />
-        <IconButton to="/dashboard/search" icon={Search} label="Search" />
+        <IconButton to="/dashboard" icon={Search} label="Search" />
         <IconButton to="/dashboard/resume" icon={FileText} label="Resume" />
-        <IconButton to="/dashboard/resumematch" icon={BarChart3} label="Resume Match" />
         <IconButton to="/dashboard/recent" icon={Clock} label="Recent" />
         <IconButton to="/dashboard/autoapply" icon={Zap} label="Auto Apply" />
         <div className="my-3 h-px w-8 bg-white/20" />

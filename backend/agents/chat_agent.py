@@ -3,8 +3,20 @@ from utils.vector_db import query_similar_jobs
 
 from utils.llm_factory import get_llm
 
-# Initialize model via factory
-llm = get_llm(temperature=0.7)
+# Global placeholders for lazy loading
+_llm = None
+_prompt = None
+
+def get_chat_chain():
+    global _llm, _prompt
+    if _llm is None:
+        # Initialize model via factory
+        _llm = get_llm(temperature=0.7)
+        _prompt = ChatPromptTemplate.from_messages([
+            ("system", system_prompt),
+            ("human", "{question}"),
+        ])
+    return _prompt | _llm
 
 system_prompt = """
 You are the Recrux.AI Career Assistant. 
@@ -15,10 +27,6 @@ Context:
 {context}
 """
 
-prompt = ChatPromptTemplate.from_messages([
-    ("system", system_prompt),
-    ("human", "{question}"),
-])
 
 async def ask_assistant(question: str, user_context: str = None) -> str:
     """
@@ -38,7 +46,7 @@ async def ask_assistant(question: str, user_context: str = None) -> str:
     full_context = f"{user_context or ''}\n{semantic_context}"
     
     # 3. Fire the LLM
-    chain = prompt | llm
+    chain = get_chat_chain()
     response = await chain.ainvoke({"context": full_context, "question": question})
     
     # Ensure response content is always a string (some models return a list of blocks)

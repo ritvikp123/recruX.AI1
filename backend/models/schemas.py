@@ -25,7 +25,7 @@ class ResumeParseOutput(BaseModel):
     phone: Optional[str] = None
     links: List[str] = Field(default_factory=list, description="Social links like LinkedIn, GitHub, Portfolio")
     professional_summary: str = Field(default="", description="A brief professional overview")
-    skills: List[str] = Field(description="List of technical and soft skills extracted from the resume.")
+    skills: List[str] = Field(default_factory=list, description="List of technical and soft skills extracted from the resume.")
     experience: List[ExperienceEntry] = Field(default_factory=list)
     projects: List[ProjectEntry] = Field(default_factory=list)
     education: List[EducationEntry] = Field(default_factory=list)

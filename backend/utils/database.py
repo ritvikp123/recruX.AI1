@@ -49,7 +49,7 @@ class Profile(Base):
     ats_score = Column(Integer, default=0)
     raw_text = Column(Text)
     role_name = Column(String)
-    embedding = Column(Vector(3072)) # PGVector column
+    embedding = Column(Vector(768)) # PGVector column matching nomic-embed-text dimension
     created_at = Column(DateTime, default=datetime.utcnow)
 
     user = relationship("User", back_populates="profiles")
@@ -66,7 +66,7 @@ class Job(Base):
     remote_allowed = Column(Boolean, default=True)
     experience_level = Column(String)
     skills_required = Column(JSONB, default=list)
-    embedding = Column(Vector(3072)) # PGVector column
+    embedding = Column(Vector(768)) # PGVector column matching nomic-embed-text dimension
     created_at = Column(DateTime, default=datetime.utcnow)
 
 class UserJobMatch(Base):
@@ -131,6 +131,7 @@ def save_profile(profile_data: dict, role_name: str, user_id: Optional[str] = No
         )
         db.merge(new_profile) # Insert or update
         db.commit()
+        return str(p_id)
     finally:
         db.close()
 

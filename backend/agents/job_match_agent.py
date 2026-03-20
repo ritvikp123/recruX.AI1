@@ -7,9 +7,23 @@ load_dotenv()
 
 from utils.llm_factory import get_llm
 
-# Initialize the model via factory
-llm = get_llm(temperature=0.2)
-structured_llm = llm.with_structured_output(JobScore)
+# Global placeholders for lazy loading
+_chain = None
+
+def get_scoring_chain():
+    global _chain
+    if _chain is None:
+        # Initialize the model via factory
+        llm = get_llm(temperature=0.2)
+        # Note: with_structured_output is supported on Gemini models
+        structured_llm = llm.with_structured_output(JobScore)
+        
+        prompt = PromptTemplate(
+            input_variables=["job_id", "job_description", "resume_text"],
+            template=score_prompt_template
+        )
+        _chain = prompt | structured_llm
+    return _chain
 
 score_prompt_template = """
 You are an expert technical recruiter and resume reviewer.
@@ -28,18 +42,14 @@ Resume Text:
 Provide the structured output exactly as specified.
 """
 
-prompt = PromptTemplate(
-    input_variables=["job_id", "job_description", "resume_text"],
-    template=score_prompt_template
-)
-
-chain = prompt | structured_llm
 
 async def score_single_job(resume_text: str, job_description: str, job_id: str) -> JobScore:
     """
     Scores a single job description against a resume.
     """
     try:
+        # Lazy load the chain
+        chain = get_scoring_chain()
         result = await chain.ainvoke({
             "job_id": job_id,
             "job_description": job_description,

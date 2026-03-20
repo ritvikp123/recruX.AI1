@@ -8,12 +8,16 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-RAPIDAPI_KEY = os.getenv("RAPIDAPI_KEY")
+def get_jsearch_config():
+    # Re-load to catch changes
+    load_dotenv(override=True)
+    api_key = os.getenv("RAPIDAPI_KEY")
+    return api_key, {
+        "X-RapidAPI-Key": api_key or "",
+        "X-RapidAPI-Host": "jsearch.p.rapidapi.com"
+    }
+
 JSEARCH_URL = "https://jsearch.p.rapidapi.com/search"
-JSEARCH_HEADERS = {
-    "X-RapidAPI-Key": RAPIDAPI_KEY or "",
-    "X-RapidAPI-Host": "jsearch.p.rapidapi.com"
-}
 
 # Arbeitnow is a completely free job board API that requires no API key
 ARBEITNOW_URL = "https://www.arbeitnow.com/api/job-board-api"
@@ -27,8 +31,9 @@ async def search_jobs(skills: List[str], role_name: str) -> List[JobListing]:
     3. Dummy fallback
     """
     # Try JSearch first if we have a key
-    if RAPIDAPI_KEY:
-        jobs = await _search_jsearch(skills, role_name)
+    rapidapi_key, headers = get_jsearch_config()
+    if rapidapi_key:
+        jobs = await _search_jsearch(skills, role_name, headers)
         if jobs:
             return jobs
 
@@ -42,7 +47,7 @@ async def search_jobs(skills: List[str], role_name: str) -> List[JobListing]:
     return _load_dummy_jobs()
 
 
-async def _search_jsearch(skills: List[str], role_name: str) -> List[JobListing]:
+async def _search_jsearch(skills: List[str], role_name: str, headers: dict) -> List[JobListing]:
     """Fetch jobs from JSearch (RapidAPI)."""
     skill_hint = ", ".join(skills[:3]) if skills else ""
     query = f"{role_name} {skill_hint}".strip()
@@ -57,7 +62,7 @@ async def _search_jsearch(skills: List[str], role_name: str) -> List[JobListing]
 
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
-            response = await client.get(JSEARCH_URL, headers=JSEARCH_HEADERS, params=params)
+            response = await client.get(JSEARCH_URL, headers=headers, params=params)
             response.raise_for_status()
             data = response.json()
 

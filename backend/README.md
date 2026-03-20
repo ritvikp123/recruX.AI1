@@ -1,6 +1,6 @@
-# Recrux.AI Backend - AI Agent Orchestration
+# Recruix.AI Backend - AI Agent Orchestration (Local Ollama)
 
-This is the AI-driven core of Recrux.AI. It uses a **Multi-Agent Architecture** built on **LangGraph** to automate the process of resume evaluation and job matching.
+This is the AI-driven core of Recruix.AI. It uses a **Multi-Agent Architecture** built on **LangGraph** to automate resume evaluation and job matching using local models.
 
 ## 🤖 Agent Architecture
 
@@ -8,7 +8,7 @@ The system is split into three primary agents that can operate independently or 
 
 ### 1. Resume Agent (`agents/resume_agent.py`)
 - **Input**: Raw text from PDF or DOCX.
-- **Processing**: Uses **Gemini 3 Flash Preview** to perform deep semantic analysis.
+- **Processing**: Uses **Ollama (gemma:2b)** to perform deep semantic analysis and structured data extraction.
 - **Output**: 
   - `skills`: A refined list of technical/soft skills.
   - `ats_score`: A calculated score indicating how well the resume is optimized for parsing systems.
@@ -16,13 +16,13 @@ The system is split into three primary agents that can operate independently or 
 
 ### 2. Job Search Agent (`agents/job_search_agent.py`)
 - **Input**: Skills list and desired Role Name.
-- **Processing**: Currently simulates a web search by retrieving high-quality job listings from `utils/dummy_jobs.json`.
+- **Processing**: Fetches live jobs from **Arbeitnow** and **JSearch** (RapidAPI).
 - **Output**: A list of recently matching jobs with titles, descriptions, and direct links.
 - **Standalone usage**: Accessible via `/api/jobs/search`.
 
 ### 3. Job Match Score Agent (`agents/job_match_agent.py`)
 - **Input**: Parsed resume text and specific Job Descriptions.
-- **Processing**: Performs an LLM comparison (Gemini) between the candidate's profile and the JD requirements.
+- **Processing**: Performs an LLM comparison (**Ollama**) between the candidate's profile and the JD requirements.
 - **Output**: A percentage score (0-100) and specific human-readable reasoning for the match.
 - **Standalone usage**: Accessible via `/api/jobs/score`.
 
@@ -32,39 +32,41 @@ The system is split into three primary agents that can operate independently or 
 The agents are wired together using **LangGraph** in `agents/graph.py`. The graph defines a stateful workflow:
 1. **Node 1**: Parse Resume -> 2. **Node 2**: Search for matching Jobs -> 3. **Node 3**: Score each job.
 
-This ensures a seamless flow of data where the output of the Resume Agent directly informs the Search and Scoring agents.
-
 ---
 
 ## 🛠️ Installation & Setup
 
 ### Requirements
-- Python 3.10+
+- Python 3.12+ (tested on 3.14)
 - `pip install -r requirements.txt`
+- **Ollama** running locally.
 
 ### Environment Variables
 Create a `.env` file in the `backend/` directory:
 ```env
-GEMINI_API_KEY=your_google_ai_studio_key
+OLLAMA_MODEL="gemma:2b"
+OLLAMA_EMBED_MODEL="nomic-embed-text"
+OLLAMA_BASE_URL="http://localhost:11434"
+DATABASE_URL="postgresql://postgres:password@localhost:5432/Recrux_VecDB_Dev"
 ```
 
 ### Running the Server
 ```bash
-uvicorn main:app --reload
+python -m uvicorn main:app --reload --port 8001
 ```
-The server will start at `http://127.0.0.1:8000`.
 
 ---
 
 ## 📡 API Documentation
 Once the server is running, visit:
-- **Swagger UI**: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
-- **ReDoc**: [http://127.0.0.1:8000/redoc](http://127.0.0.1:8000/redoc)
+- **Swagger UI**: [http://localhost:8001/docs](http://localhost:8001/docs)
+- **ReDoc**: [http://localhost:8001/redoc](http://localhost:8001/redoc)
 
 ---
 
 ## 📦 Core Dependencies
 - **FastAPI**: High-performance web framework.
 - **LangGraph & LangChain**: For agent coordination and LLM management.
-- **Google Generative AI**: Access to Gemini 3 Flash.
+- **Langchain-Ollama**: Access to local Ollama models.
+- **Pgvector**: Vector search extension for PostgreSQL.
 - **PyMuPDF & python-docx**: Robust document parsing.

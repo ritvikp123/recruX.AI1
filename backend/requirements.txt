@@ -21,4 +21,6 @@ passlib[bcrypt]>=1.7.4
 python-jose[cryptography]>=3.3.0
 google-auth-oauthlib 
 google-auth-httplib2 
-google-api-python-client   
+google-api-python-client
+pydantic[email]
+pydantic-core==2.18.4

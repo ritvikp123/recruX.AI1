@@ -62,14 +62,20 @@ async def parse_resume(file: UploadFile = File(...)):
     """
     Endpoint to process a resume file (PDF/docx), extract skills and calculate an ATS score limit.
     """
+    print(f"[API LOG] /resume/parse - Received file: {file.filename}")
     try:
         # Extract text using file parser utility
         text = await extract_text_from_file(file)
+        print(f"[API LOG] Extracted text length: {len(text)} characters.")
         
         # Pass to Resume Agent
         result = await process_resume(text)
+        print(f"[API LOG] Agent result summary: {result.professional_summary[:50]}...")
         return result
     except Exception as e:
+        import traceback
+        traceback.print_exc()
+        print(f"[API ERROR] {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.options("/jobs/search")

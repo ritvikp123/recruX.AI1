@@ -1,8 +1,8 @@
 import { useState, useCallback, useEffect } from "react";
-import { FileText, Download, Trash2 } from "lucide-react";
+import { FileText, Download } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { supabase } from "../../lib/supabase";
-import { api } from "../../api/client";
+import { parseResume } from "../../lib/api";
 import { Toast } from "../../components/Toast";
 
 const MAX_SIZE = 5 * 1024 * 1024; // 5MB
@@ -85,15 +85,11 @@ export function ResumeUploadPage({ hideTitle }: ResumeUploadPageProps = {}) {
       const ext = f.name.split(".").pop()?.toLowerCase();
       if (["pdf", "docx"].includes(ext || "")) {
         try {
-          const form = new FormData();
-          form.append("file", f);
-          const { data } = await api.post<{ text: string; skills?: string[] }>("/resume/extract", form, {
-            headers: { "Content-Type": "multipart/form-data" },
-          });
-          resumeText = data?.text || "";
+          const data = await parseResume(f);
+          resumeText = data?.raw_text || "";
           skills = data?.skills || [];
         } catch {
-          /* ignore extract failure */
+          /* ignore parse failure */
         }
       }
       setProgress(70);

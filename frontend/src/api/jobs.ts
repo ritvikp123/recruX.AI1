@@ -1,38 +1,12 @@
-import axios from "axios";
+/**
+ * Job search and normalization.
+ * Uses backend POST /api/jobs/search (replaces JSearch/RapidAPI).
+ */
 
-const BASE_URL = "https://jsearch.p.rapidapi.com";
+import { searchJobs as searchJobsApi, type JobListing } from "../lib/api";
+import type { Job } from "../types/jobs";
 
-const getHeaders = () => ({
-  "X-RapidAPI-Key": import.meta.env.VITE_JSEARCH_API_KEY as string,
-  "X-RapidAPI-Host": "jsearch.p.rapidapi.com",
-});
-
-export interface JSearchJob {
-  job_id: string;
-  job_title: string;
-  employer_name: string;
-  employer_logo?: string;
-  job_city?: string;
-  job_state?: string;
-  job_country?: string;
-  job_is_remote?: boolean;
-  job_employment_type?: string;
-  job_min_salary?: number;
-  job_max_salary?: number;
-  job_required_experience?: { required_experience_in_months?: number };
-  job_description?: string;
-  job_highlights?: {
-    Qualifications?: string[];
-    Responsibilities?: string[];
-    Benefits?: string[];
-  };
-  job_required_skills?: string[];
-  job_apply_link?: string;
-  job_posted_at_datetime_utc?: string;
-  job_apply_quality_score?: number;
-  job_offer_expiration_datetime_utc?: string | null;
-  job_publisher?: string;
-}
+export type { JobListing };
 
 export interface SearchJobsParams {
   query?: string;
@@ -41,45 +15,69 @@ export interface SearchJobsParams {
   date_posted?: string;
   remote_jobs_only?: boolean;
   job_requirements?: string;
+  skills?: string[];
 }
 
-export async function searchJobs(params: SearchJobsParams = {}): Promise<JSearchJob[]> {
-  const {
-    query = "Software Engineer",
-    page = 1,
-    employment_type = "",
-    date_posted = "all",
-    remote_jobs_only = false,
-    job_requirements = "",
-  } = params;
-
-  const response = await axios.get<{ data: JSearchJob[] }>(`${BASE_URL}/search`, {
-    headers: getHeaders(),
-    params: {
-      query,
-      page,
-      num_pages: 1,
-      date_posted,
-      remote_jobs_only,
-      employment_type: employment_type || undefined,
-      job_requirements: job_requirements || undefined,
-    },
-  });
-  return response.data?.data ?? [];
+function getTimeAgo(_dateString: string | undefined): string {
+  return "Recently";
 }
 
-export async function getJobDetails(jobId: string) {
-  const response = await axios.get<{ data: JSearchJob[] }>(`${BASE_URL}/job-details`, {
-    headers: getHeaders(),
-    params: { job_id: jobId },
-  });
-  return response.data?.data?.[0] ?? null;
+function mapWorkSetting(job: JobListing): "Remote" | "Hybrid" | "On-site" {
+  if (job.remote_allowed) return "Remote";
+  const loc = (job.location || "").toLowerCase();
+  if (loc.includes("remote") || loc.includes("hybrid")) return loc.includes("hybrid") ? "Hybrid" : "Remote";
+  return "On-site";
 }
 
-export async function getJobSalary(jobTitle: string, location: string) {
-  const response = await axios.get(`${BASE_URL}/estimated-salary`, {
-    headers: getHeaders(),
-    params: { job_title: jobTitle, location, radius: "100" },
-  });
-  return response.data?.data;
+export function normalizeJob(
+  job: JobListing,
+  userProfile?: { skills?: string[] }
+): Job {
+  const location = job.location || "Location not specified";
+  const salary = job.salary_range || "Salary not listed";
+  const jobText = ((job.job_description || "") + (job.skills_required || []).join(" ")).toLowerCase();
+  const userSkills = userProfile?.skills || [];
+  const matches = userSkills.filter((s) => jobText.includes(s.toLowerCase()));
+  const match = userSkills.length
+    ? Math.min(99, 60 + Math.round((matches.length / userSkills.length) * 30) + Math.floor(Math.random() * 10))
+    : 78 + Math.floor(Math.random() * 20);
+  const colors = ["bg-emerald-500", "bg-sky-500", "bg-indigo-500", "bg-purple-500", "bg-teal-500"];
+  const logoColor = colors[Math.abs(job.id.split("").reduce((a, c) => a + c.charCodeAt(0), 0)) % colors.length];
+
+  return {
+    id: job.id,
+    title: job.job_title,
+    company: job.company_name,
+    industryStage: "",
+    location,
+    workplace: mapWorkSetting(job),
+    salary,
+    match,
+    h1bStatus: "",
+    tags: job.skills_required || [],
+    postedAt: new Date().toISOString(),
+    type: "full-time",
+    experienceLabel: job.experience_level || "Entry Level",
+    years: "0+ yrs",
+    category: "",
+    logoColor,
+    description: job.job_description,
+    responsibilities: [],
+    requirements: job.skills_required || [],
+    applyUrl: job.job_listing_link,
+    source: undefined,
+    postedAgo: getTimeAgo(undefined),
+    applicantCount: null,
+    isEarlyApplicant: false,
+  };
+}
+
+export async function searchJobs(params: SearchJobsParams = {}): Promise<JobListing[]> {
+  const query = params.query ?? "Software Engineer";
+  const filters: Record<string, unknown> = {};
+  if (params.skills?.length) filters.skills = params.skills;
+  if (params.remote_jobs_only) filters.remote_only = true;
+
+  const { jobs } = await searchJobsApi({ query, filters });
+  return jobs;
 }

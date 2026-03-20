@@ -1,0 +1,42 @@
+[
+  {
+    "id": "job_001",
+    "job_title": "Senior Frontend Developer (React)",
+    "company_name": "TechFlow Inc",
+    "job_description": "We are looking for a Senior Frontend Developer skilled in React, Redux, and modern CSS to build scalable web applications. Experience with Next.js is a plus.",
+    "job_listing_link": "https://example.com/jobs/001",
+    "location": "Remote"
+  },
+  {
+    "id": "job_002",
+    "job_title": "Python Backend Engineer",
+    "company_name": "DataWorks",
+    "job_description": "Join our backend team to build APIs using Python, FastAPI, and PostgreSQL. Knowledge of Docker and CI/CD pipelines is heavily preferred.",
+    "job_listing_link": "https://example.com/jobs/002",
+    "location": "New York, NY"
+  },
+  {
+    "id": "job_003",
+    "job_title": "AI/MLEngineer - LangGraph",
+    "company_name": "Recrux.AI",
+    "job_description": "Looking for an expert AI engineer to build multi-agent systems using LangGraph and LangChain. Proficiency in working with LLMs (Gemini/OpenAI) is required.",
+    "job_listing_link": "https://example.com/jobs/003",
+    "location": "San Francisco, CA"
+  },
+  {
+    "id": "job_004",
+    "job_title": "Full Stack Developer",
+    "company_name": "Innovate LLC",
+    "job_description": "Seeking a Full Stack Developer with experience in React for the frontend and Python/Node.js for the backend. Must be able to manage database schemas and deploy on AWS.",
+    "job_listing_link": "https://example.com/jobs/004",
+    "location": "Austin, TX"
+  },
+  {
+    "id": "job_005",
+    "job_title": "Data Scientist",
+    "company_name": "Analytics Corp",
+    "job_description": "We need a Data Scientist to analyze massive user datasets and build predictive models. Strong Python, pandas, and scikit-learn skills are necessary.",
+    "job_listing_link": "https://example.com/jobs/005",
+    "location": "Remote"
+  }
+]

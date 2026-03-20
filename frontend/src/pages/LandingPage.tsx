@@ -76,23 +76,18 @@ export function LandingPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const apiKey = import.meta.env.VITE_JSEARCH_API_KEY;
-    if (!apiKey) {
-      setLoading(false);
-      return;
-    }
     searchJobs({ query: "AI Engineer", page: 1 })
       .then((data) => {
         const normalized: PreviewJob[] = (data || []).slice(0, 3).map((j) => ({
-          id: j.job_id,
+          id: j.id,
           title: j.job_title,
-          company: j.employer_name,
-          location: j.job_city && j.job_state ? `${j.job_city}, ${j.job_state}` : j.job_country || "Remote",
+          company: j.company_name,
+          location: j.location || "Remote",
           match: 78 + Math.floor(Math.random() * 20),
-          tags: (j.job_required_skills || []).slice(0, 2),
-          workplace: j.job_is_remote ? "Remote" : "On-site",
-          applyUrl: j.job_apply_link,
-          source: j.job_publisher,
+          tags: (j.skills_required || []).slice(0, 2),
+          workplace: j.remote_allowed ? "Remote" : "On-site",
+          applyUrl: j.job_listing_link,
+          source: undefined,
         }));
         setPreviewJobs(normalized);
       })
@@ -232,7 +227,7 @@ export function LandingPage() {
         ))}
       </section>
 
-      {/* Job cards preview – real jobs from JSearch API */}
+      {/* Job cards preview – real jobs from backend */}
       <section className="border-b px-4 py-12" style={{ borderColor: "var(--border)" }}>
         <div className="mx-auto max-w-4xl">
           <p className="mb-6 text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
@@ -305,7 +300,7 @@ export function LandingPage() {
               ))}
             </div>
           ) : (
-            <p className="text-sm text-text-muted">Connect your API key to see live jobs. <Link to="/signup" className="text-accent underline">Sign up</Link> to get started.</p>
+            <p className="text-sm text-text-muted">Sign up to see live jobs and get matched. <Link to="/signup" className="text-accent underline">Get started</Link></p>
           )}
         </div>
       </section>

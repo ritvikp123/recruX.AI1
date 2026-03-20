@@ -3,9 +3,8 @@ import { Link } from "react-router-dom";
 import { Check, X, FileText, Loader2, BarChart3 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { supabase } from "../../lib/supabase";
-import { api } from "../../api/client";
-import { searchJobs } from "../../api/jobs";
-import { normalizeJob } from "../../hooks/useJobs";
+import { scoreJob } from "../../lib/api";
+import { searchJobs, normalizeJob } from "../../api/jobs";
 import type { Job } from "../../types/jobs";
 
 interface MatchResult {
@@ -172,17 +171,25 @@ export function ResumeMatchPage({ onGoToUpload }: ResumeMatchPageProps = {}) {
     setLoading(true);
     setResult(null);
     try {
-      const { data } = await api.post<MatchResult>("/analyze-match", {
-        job_description: text,
-        resume_text: resumeText,
-      });
-      setResult(data);
-      if (user?.id && data) {
+      const { scores } = await scoreJob(resumeText, text);
+      const s = scores[0];
+      const mapped: MatchResult = {
+        score: s?.match_score ?? 0,
+        matched_skills: [],
+        missing_skills: [],
+        matched_keywords: [],
+        missing_keywords: [],
+        experience_match: s?.reasoning ?? "",
+        recommendation: s?.reasoning ?? "Unable to analyze.",
+        tips: [],
+      };
+      setResult(mapped);
+      if (user?.id && mapped) {
         await supabase.from("match_analyses").insert({
           user_id: user.id,
           job_description: text.slice(0, 10000),
-          score: data.score,
-          results: data,
+          score: mapped.score,
+          results: mapped,
         });
       }
     } catch {

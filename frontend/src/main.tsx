@@ -12,6 +12,8 @@ import { ResumePage } from "./ui/pages/ResumePage";
 import { RecentJobsPage } from "./ui/pages/RecentJobsPage";
 import { AutoApplyPage } from "./ui/pages/AutoApplyPage";
 import { LandingPage } from "./pages/LandingPage";
+import { RoadmapPage } from "./pages/RoadmapPage";
+import { RoadmapPage as DashboardRoadmapPage } from "./ui/pages/RoadmapPage";
 import { SignIn } from "./pages/SignIn";
 import { SignUp } from "./pages/SignUp";
 import { ForgotPassword } from "./pages/ForgotPassword";
@@ -40,6 +42,7 @@ function AppRoutes() {
         path="/"
         element={authed ? <Navigate to="/dashboard" replace /> : <LandingPage />}
       />
+      <Route path="/roadmap" element={<RoadmapPage />} />
       <Route path="/signin" element={<SignIn />} />
       <Route path="/signup" element={<SignUp />} />
       <Route path="/auth/callback" element={<AuthCallback />} />
@@ -83,6 +86,16 @@ function AppRoutes() {
           <ProtectedRoute>
             <Layout>
               <AutoApplyPage />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/dashboard/roadmap"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <DashboardRoadmapPage />
             </Layout>
           </ProtectedRoute>
         }

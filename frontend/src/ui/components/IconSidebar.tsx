@@ -1,99 +1,165 @@
 import {
   Search,
   FileText,
-  Target,
   Clock,
+  Bookmark,
+  CheckCircle,
   Zap,
-  Bot,
-  Gift,
-  Bell,
-  HelpCircle,
+  MessageCircle,
+  BarChart3,
+  Map,
   Settings,
+  LogOut,
 } from "lucide-react";
-import { NavLink } from "react-router-dom";
-import { motion } from "framer-motion";
+import { NavLink, useNavigate } from "react-router-dom";
+import { useAuth } from "../../context/AuthContext";
 
-function IconButton({
+function NavItem({
   to,
   icon: Icon,
   label,
-  badge,
+  onClick,
 }: {
   to?: string;
   icon: typeof Search;
   label: string;
-  badge?: string;
+  onClick?: () => void;
 }) {
   const content = (
-    <div className="relative flex h-10 w-10 items-center justify-center rounded-lg text-white/50 transition hover:scale-105 hover:text-white/80">
-      <Icon size={18} />
-      {badge && (
-        <span className="absolute -right-1 -top-1 rounded-full bg-accent px-1.5 py-0.5 text-[9px] font-semibold text-white">
-          {badge}
-        </span>
-      )}
+    <div className="flex h-[30px] items-center gap-2 rounded-[5px] px-2">
+      <Icon size={15} className="shrink-0" />
+      <span className="text-[13px] font-normal">{label}</span>
     </div>
   );
 
-  if (!to) {
+  if (onClick !== undefined) {
     return (
-      <button type="button" className="group relative">
+      <button
+        type="button"
+        onClick={onClick}
+        className="block w-full text-left text-[#3D3D3A] transition hover:bg-[#F4F4F2] hover:text-[#1A1A1A]"
+      >
         {content}
-        <span className="pointer-events-none absolute left-12 top-1/2 -translate-y-1/2 rounded-button bg-bg-card px-2 py-1 text-[10px] text-text-primary opacity-0 shadow-md group-hover:opacity-100" style={{ border: "1px solid var(--border)" }}>
-          {label}
-        </span>
       </button>
     );
   }
 
+  if (!to) return null;
+
   return (
-    <NavLink to={to} end className="group relative flex items-center justify-center">
-      {({ isActive }) => (
-        <>
-          <motion.div
-            className={`relative flex h-10 w-10 items-center justify-center rounded-full transition hover:scale-105 ${
-              isActive ? "bg-accent text-white" : "text-white/50 hover:text-white/80"
-            }`}
-          >
-            <Icon size={18} />
-            {badge && (
-              <span className="absolute -right-1 -top-1 rounded-full bg-accent px-1.5 py-0.5 text-[9px] font-semibold text-white">
-                {badge}
-              </span>
-            )}
-          </motion.div>
-          <span className="pointer-events-none absolute left-12 top-1/2 -translate-y-1/2 rounded-button bg-bg-card px-2 py-1 text-[10px] text-text-primary opacity-0 shadow-md group-hover:opacity-100" style={{ border: "1px solid var(--border)" }}>
-            {label}
-          </span>
-        </>
-      )}
+    <NavLink
+      to={to}
+      end={to === "/dashboard"}
+      className={({ isActive }) =>
+        `block w-full transition ${
+          isActive
+            ? "rounded-[5px] bg-[#EEEEFD] text-[#5E5CE6] [&_span]:font-medium"
+            : "text-[#3D3D3A] hover:bg-[#F4F4F2] hover:text-[#1A1A1A]"
+        }`
+      }
+    >
+      {content}
     </NavLink>
   );
 }
 
-export function IconSidebar() {
+function GroupLabel({ children }: { children: React.ReactNode }) {
   return (
-    <aside className="fixed inset-y-0 left-0 z-50 hidden w-[70px] min-w-[70px] flex-shrink-0 flex-col items-center bg-primary py-4 md:flex">
+    <div
+      className="mt-5 mb-1 px-2 text-[10px] font-medium uppercase"
+      style={{ color: "#8A8A85", letterSpacing: "0.06em" }}
+    >
+      {children}
+    </div>
+  );
+}
+
+export function IconSidebar() {
+  const { user, signOut } = useAuth();
+  const navigate = useNavigate();
+  const email = user?.email ?? "";
+  const initials =
+    user?.user_metadata?.full_name
+      ?.split(" ")
+      .map((p: string) => p[0])
+      .join("")
+      .slice(0, 2)
+      .toUpperCase() || "U";
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate("/");
+  };
+
+  return (
+    <aside
+      className="fixed inset-y-0 left-0 z-50 hidden w-[220px] min-w-[220px] flex-shrink-0 flex-col border-r bg-white py-0 md:flex"
+      style={{ borderColor: "#E8E8E6" }}
+    >
+      {/* Logo area — 52px tall */}
       <div
-        className="mb-6 flex h-10 w-10 items-center justify-center rounded-xl text-xs font-bold text-white"
-        style={{ background: "var(--secondary)" }}
+        className="flex flex-col justify-end border-b px-4 pb-3"
+        style={{ height: 52, borderColor: "#E8E8E6" }}
       >
-        R
+        <div className="flex items-center gap-2">
+          <div className="h-1.5 w-1.5 rounded-full bg-[#5E5CE6]" />
+          <span className="text-[14px] font-semibold" style={{ color: "#1A1A1A" }}>
+            Recruix
+          </span>
+        </div>
+        {email && (
+          <p className="mt-0.5 truncate text-[12px]" style={{ color: "#8A8A85" }}>
+            {email}
+          </p>
+        )}
       </div>
-      <div className="flex flex-1 flex-col items-center gap-3">
-        <IconButton to="/dashboard" icon={Search} label="Search" />
-        <IconButton to="/dashboard/resume" icon={FileText} label="Resume" />
-        <IconButton to="/dashboard/recent" icon={Clock} label="Recent" />
-        <IconButton to="/dashboard/autoapply" icon={Zap} label="Auto Apply" />
-        <div className="my-3 h-px w-8 bg-white/20" />
-        <IconButton to="/agent" icon={Bot} label="Agent" badge="Beta" />
-        <IconButton to="/coaching" icon={Target} label="Coaching" badge="New" />
-        <IconButton icon={Gift} label="Rewards" />
-        <IconButton icon={Bell} label="Notifications" />
-        <IconButton icon={HelpCircle} label="Help" />
-      </div>
-      <div className="mt-auto">
-        <IconButton to="/dashboard/settings" icon={Settings} label="Settings" />
+
+      {/* Group 1 — main actions */}
+      <nav className="flex-1 space-y-0.5 px-2 pt-2">
+        <NavItem to="/dashboard" icon={Search} label="Job Search" />
+        <NavItem to="/dashboard/resume" icon={FileText} label="Resume" />
+
+        <GroupLabel>Activity</GroupLabel>
+        <NavItem to="/dashboard/recent" icon={Clock} label="Recent" />
+        <NavItem to="/saved" icon={Bookmark} label="Saved" />
+        <NavItem to="/applied" icon={CheckCircle} label="Applied" />
+
+        <GroupLabel>Tools</GroupLabel>
+        <NavItem to="/dashboard/autoapply" icon={Zap} label="Auto Apply" />
+        <NavItem icon={MessageCircle} label="AI Copilot" onClick={() => {}} />
+        <NavItem to="/insights" icon={BarChart3} label="Insights" />
+        <NavItem to="/dashboard/roadmap" icon={Map} label="Roadmap" />
+      </nav>
+
+      {/* Bottom pinned */}
+      <div
+        className="mt-auto space-y-0.5 border-t px-2 pt-3 pb-3"
+        style={{ borderColor: "#E8E8E6" }}
+      >
+        <NavItem to="/settings" icon={Settings} label="Settings" />
+        <button
+          type="button"
+          onClick={handleSignOut}
+          className="block w-full text-left text-[#3D3D3A] transition hover:bg-[#F4F4F2] hover:text-[#1A1A1A]"
+        >
+          <div className="flex h-[30px] items-center gap-2 rounded-[5px] px-2">
+            <LogOut size={15} className="shrink-0" />
+            <span className="text-[13px] font-normal">Sign out</span>
+          </div>
+        </button>
+        <div className="mt-3 flex items-center gap-2 px-2">
+          <div
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-medium"
+            style={{ background: "#F4F4F2", color: "#3D3D3A", border: "1px solid #E8E8E6" }}
+          >
+            {initials}
+          </div>
+          <div className="min-w-0">
+            <p className="truncate text-[13px] font-normal" style={{ color: "#1A1A1A" }}>
+              {user?.user_metadata?.full_name || "User"}
+            </p>
+          </div>
+        </div>
       </div>
     </aside>
   );

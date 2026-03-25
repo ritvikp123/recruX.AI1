@@ -108,24 +108,13 @@ export function SignUp() {
       provider: "google",
       options: {
         redirectTo: `${window.location.origin}/auth/callback`,
+        queryParams: {
+          prompt: "select_account",
+        },
       },
     });
     if (oauthError) {
       setError(oauthError.message || "Google sign-in failed. Try again or use email.");
-      setShakeKey((k) => k + 1);
-    }
-  };
-
-  const handleGitHubSignIn = async () => {
-    setError("");
-    const { error: oauthError } = await supabase.auth.signInWithOAuth({
-      provider: "github",
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
-      },
-    });
-    if (oauthError) {
-      setError(oauthError.message || "GitHub sign-in failed. Try again or use email.");
       setShakeKey((k) => k + 1);
     }
   };
@@ -143,11 +132,6 @@ export function SignUp() {
             icon={<span className="flex h-4 w-4 items-center justify-center rounded text-[10px] font-medium text-text-primary bg-bg-badge">G</span>}
             label="Continue with Google"
             onClick={handleGoogleSignIn}
-          />
-          <SocialButton
-            icon={<span className="flex h-4 w-4 items-center justify-center rounded text-[10px] font-medium text-white bg-slate-800">GH</span>}
-            label="Continue with GitHub"
-            onClick={handleGitHubSignIn}
           />
         </div>
         <div className="flex items-center gap-2 text-xs text-text-muted">

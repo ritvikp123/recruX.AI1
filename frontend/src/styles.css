@@ -2,23 +2,32 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Linear-inspired light theme */
 :root {
-  --primary: #4f46e5;
-  --primary-dark: #4338ca;
-  --secondary: #8b5cf6;
-  --accent: #14b8a6;
-  --accent-dark: #0f766e;
-  --bg-page: #f8fafc;
+  --primary: #5e5ce6;
+  --primary-hover: #4a48cc;
+  --accent: #5e5ce6;
+  --accent-hover: #4a48cc;
+  --accent-light: #eeeefd;
+  --success: #16a34a;
+  --success-light: #f0fdf4;
+  --warning: #d97706;
+  --warning-light: #fffbeb;
+  --danger: #dc2626;
+  --danger-light: #fef2f2;
+  --bg-page: #f7f7f5;
   --bg-card: #ffffff;
-  --bg-hero: #eef2ff;
-  --bg-badge: #e0e7ff;
-  --bg-purple: #ede9fe;
-  --bg-teal: #ccfbf1;
-  --text-primary: #1f2937;
-  --text-secondary: #6b7280;
-  --text-muted: #9ca3af;
-  --border: #e0e7ff;
-  --border-light: #f1f5f9;
+  --bg-input: #ffffff;
+  --bg-hero: #f7f7f5;
+  --text-primary: #1a1a1a;
+  --text-secondary: #3d3d3a;
+  --text-muted: #8a8a85;
+  --border: #e8e8e6;
+  --border-hover: #c8c8c4;
+  --border-focus: #5e5ce6;
+  --pill-bg: #f4f4f2;
+  --pill-border: #e8e8e6;
+  --bg-badge: #f4f4f2;
 }
 
 body {
@@ -41,21 +50,20 @@ body {
   }
 }
 
-/* Design system: buttons 8px radius, cards 12px */
+/* Design system: Linear-style */
 .rounded-button {
-  border-radius: 8px;
+  border-radius: 6px;
 }
 .rounded-card {
-  border-radius: 12px;
+  border-radius: 8px;
 }
 
-/* Dashboard: offset main content when fixed sidebar (70px) is visible */
+/* Dashboard: offset main content when fixed sidebar (220px) is visible */
 .dashboard-main {
   margin-left: 0;
 }
 @media (min-width: 768px) {
   .dashboard-main {
-    margin-left: 70px;
+    margin-left: 220px;
   }
 }
-

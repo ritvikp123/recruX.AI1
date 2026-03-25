@@ -4,6 +4,7 @@
  */
 
 import { searchJobs as searchJobsApi, type JobListing } from "../lib/api";
+import { computeMatchScore } from "../lib/matchScore";
 import type { Job } from "../types/jobs";
 
 export type { JobListing };
@@ -29,18 +30,33 @@ function mapWorkSetting(job: JobListing): "Remote" | "Hybrid" | "On-site" {
   return "On-site";
 }
 
+/**
+ * Deterministic match score (0-100) using unified keyword-based logic.
+ * For most accurate scores, use Resume Match (LLM-based).
+ */
 export function normalizeJob(
   job: JobListing,
-  userProfile?: { skills?: string[] }
+  userProfile?: { skills?: string[]; resumeText?: string }
 ): Job {
   const location = job.location || "Location not specified";
   const salary = job.salary_range || "Salary not listed";
-  const jobText = ((job.job_description || "") + (job.skills_required || []).join(" ")).toLowerCase();
-  const userSkills = userProfile?.skills || [];
-  const matches = userSkills.filter((s) => jobText.includes(s.toLowerCase()));
-  const match = userSkills.length
-    ? Math.min(99, 60 + Math.round((matches.length / userSkills.length) * 30) + Math.floor(Math.random() * 10))
-    : 78 + Math.floor(Math.random() * 20);
+  const resumeText = (userProfile?.resumeText || "").trim();
+  const profileSkills = userProfile?.skills || [];
+  const jobDesc = (job.job_description || "") + (job.skills_required || []).join(" ");
+  const jobSkillsRequired = job.skills_required || [];
+
+  let match: number;
+  if (!resumeText && profileSkills.length === 0) {
+    match = 50; // No resume/skills: neutral placeholder
+  } else {
+    const { score } = computeMatchScore(
+      resumeText,
+      profileSkills,
+      jobDesc,
+      jobSkillsRequired
+    );
+    match = score;
+  }
   const colors = ["bg-emerald-500", "bg-sky-500", "bg-indigo-500", "bg-purple-500", "bg-teal-500"];
   const logoColor = colors[Math.abs(job.id.split("").reduce((a, c) => a + c.charCodeAt(0), 0)) % colors.length];
 

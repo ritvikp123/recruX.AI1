@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { searchJobs, normalizeJob } from "../api/jobs";
+import { scoreJobsBatch } from "../lib/api";
 import type { Job } from "../types/jobs";
 
 export interface JobsFilters {
@@ -11,6 +12,7 @@ export interface JobsFilters {
   experience?: string;
   datePosted?: string;
   userProfile?: { skills?: string[]; target_field?: string };
+  resumeText?: string;
 }
 
 function getTimeAgo(dateString: string | undefined): string {
@@ -58,8 +60,28 @@ export function useJobs(filters: JobsFilters) {
         remote_jobs_only: filters.workSetting === "Remote",
         skills: filters.userProfile?.skills,
       });
-      const normalized = results.map((j) => normalizeJob(j, filters.userProfile));
+      const profileWithResume = { ...filters.userProfile, resumeText: filters.resumeText };
+      const normalized = results.map((j) => normalizeJob(j, profileWithResume));
       setJobs(normalized);
+      setLoading(false);
+
+      // If user has resume text, fetch accurate LLM scores for first 8 jobs
+      const resumeText = (filters.resumeText || "").trim();
+      if (resumeText && normalized.length > 0) {
+        const toScore = normalized.slice(0, 8).map((j) => ({
+          id: j.id,
+          description: [j.title, j.company, j.description, (j.requirements || []).join(" ")].filter(Boolean).join("\n\n"),
+        }));
+        try {
+          const { scores } = await scoreJobsBatch(resumeText, toScore);
+          const scoreMap = new Map(scores.map((s) => [s.job_id, s.match_score]));
+          setJobs((prev) =>
+            prev.map((j) => (scoreMap.has(j.id) ? { ...j, match: scoreMap.get(j.id)! } : j))
+          );
+        } catch {
+          // Keep skill-based scores if batch scoring fails
+        }
+      }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to load jobs. Please try again.";
       setError(msg);
@@ -74,6 +96,7 @@ export function useJobs(filters: JobsFilters) {
     filters.location,
     filters.workSetting,
     filters.experience,
+    filters.resumeText,
     JSON.stringify(filters.userProfile),
     page,
   ]);

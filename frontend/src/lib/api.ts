@@ -90,6 +90,26 @@ export async function parseResume(file: File): Promise<ResumeParseOutput> {
   return handleResponse<ResumeParseOutput>(res);
 }
 
+/** Fast extraction (no LLM) - use for quick uploads */
+export interface ResumeExtractOutput {
+  raw_text: string;
+  skills: string[];
+}
+
+export async function extractResume(file: File): Promise<ResumeExtractOutput> {
+  const form = new FormData();
+  form.append("file", file);
+  const headers: Record<string, string> = {};
+  const token = localStorage.getItem("access_token");
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  const res = await fetch(`${API_PREFIX}/resume/extract`, {
+    method: "POST",
+    headers,
+    body: form,
+  });
+  return handleResponse<ResumeExtractOutput>(res);
+}
+
 // --- Jobs ---
 
 export interface JobListing {
@@ -143,6 +163,29 @@ export async function scoreJob(
   });
 }
 
+/** Batch-score multiple jobs using FormData (backend supports multiple job_descriptions) */
+export async function scoreJobsBatch(
+  resume_text: string,
+  jobs: { id: string; description: string }[]
+): Promise<{ scores: JobScoreResult[] }> {
+  if (jobs.length === 0) return { scores: [] };
+  const form = new FormData();
+  form.append("resume_text", resume_text);
+  jobs.forEach((j) => {
+    form.append("job_descriptions", j.description);
+    form.append("job_ids", j.id);
+  });
+  const headers: Record<string, string> = {};
+  const token = localStorage.getItem("access_token");
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  const res = await fetch(`${API_PREFIX}/jobs/score`, {
+    method: "POST",
+    headers,
+    body: form,
+  });
+  return handleResponse<{ scores: JobScoreResult[] }>(res);
+}
+
 // --- Auth (for future backend JWT) ---
 
 export async function login(email: string, password: string): Promise<{ access_token: string }> {
@@ -172,5 +215,46 @@ export async function chat(
   return request<{ response: string }>("/chat", {
     method: "POST",
     body: JSON.stringify({ message, user_context }),
+  });
+}
+
+// --- Roadmap ---
+
+export interface CareerRoadmapSkill {
+  name: string;
+  user_has: boolean;
+}
+
+export interface CareerRoadmapResource {
+  label: string;
+  url: string;
+}
+
+export interface CareerRoadmapPhase {
+  number: number;
+  title: string;
+  status: "complete" | "active" | "upcoming";
+  duration_weeks: number;
+  description: string;
+  skills: CareerRoadmapSkill[];
+  resources: CareerRoadmapResource[];
+}
+
+export interface CareerRoadmapResponse {
+  goal: string;
+  readiness_percent: number;
+  skills_matched: number;
+  skills_total: number;
+  estimated_months: number;
+  phases: CareerRoadmapPhase[];
+}
+
+export async function generateRoadmap(
+  goal: string,
+  resume_text = ""
+): Promise<CareerRoadmapResponse> {
+  return request<CareerRoadmapResponse>("/roadmap", {
+    method: "POST",
+    body: JSON.stringify({ goal, resume_text }),
   });
 }

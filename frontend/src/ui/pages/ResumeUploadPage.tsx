@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect } from "react";
 import { FileText, Download } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { supabase } from "../../lib/supabase";
-import { parseResume } from "../../lib/api";
+import { extractResume } from "../../lib/api";
 import { Toast } from "../../components/Toast";
 
 const MAX_SIZE = 5 * 1024 * 1024; // 5MB
@@ -25,11 +25,23 @@ export function ResumeUploadPage({ hideTitle }: ResumeUploadPageProps = {}) {
 
   const loadProfile = useCallback(async () => {
     if (!user?.id) return;
-    const { data } = await supabase.from("profiles").select("resume_filename, resume_url, resume_uploaded_at").eq("id", user.id).single();
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("resume_filename, resume_url, resume_uploaded_at")
+      .eq("id", user.id)
+      .maybeSingle();
+    if (error) {
+      console.warn("ResumeUploadPage: loadProfile error", error);
+      return;
+    }
     if (data?.resume_filename) {
       setFilename(data.resume_filename);
       setUploadedAt(data.resume_uploaded_at || null);
       setResumeUrl(data.resume_url || null);
+    } else {
+      setFilename(null);
+      setUploadedAt(null);
+      setResumeUrl(null);
     }
   }, [user?.id]);
 
@@ -85,25 +97,31 @@ export function ResumeUploadPage({ hideTitle }: ResumeUploadPageProps = {}) {
       const ext = f.name.split(".").pop()?.toLowerCase();
       if (["pdf", "docx"].includes(ext || "")) {
         try {
-          const data = await parseResume(f);
+          const data = await extractResume(f);
           resumeText = data?.raw_text || "";
           skills = data?.skills || [];
         } catch {
-          /* ignore parse failure */
+          /* ignore extract failure */
         }
       }
       setProgress(70);
-      await supabase
+      const { error: upsertError } = await supabase
         .from("profiles")
-        .upsert({
-          id: user.id,
-          resume_url: url,
-          resume_filename: f.name,
-          resume_uploaded_at: new Date().toISOString(),
-          resume_text: resumeText || null,
-          skills: skills.length ? skills : null,
-          updated_at: new Date().toISOString(),
-        });
+        .upsert(
+          {
+            id: user.id,
+            resume_url: url,
+            resume_filename: f.name,
+            resume_uploaded_at: new Date().toISOString(),
+            resume_text: resumeText || null,
+            skills: skills.length ? skills : null,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "id" }
+        );
+      if (upsertError) {
+        throw new Error(upsertError.message || "Failed to save resume to profile.");
+      }
       setProgress(100);
       setFilename(f.name);
       setUploadedAt(new Date().toISOString());

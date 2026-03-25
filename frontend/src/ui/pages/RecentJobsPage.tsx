@@ -46,7 +46,7 @@ export function RecentJobsPage() {
   const [tab, setTab] = useState<Tab>("viewed");
   const [viewed, setViewed] = useState<{ job_data: Job; viewed_at: string }[]>([]);
   const [saved, setSaved] = useState<{ job_data: Job; saved_at: string }[]>([]);
-  const [applied, setApplied] = useState<{ job_data: Job; applied_at: string; status: string }[]>([]);
+  const [applied, setApplied] = useState<{ id: string; job_data: Job; applied_at: string; status: string }[]>([]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -73,16 +73,22 @@ export function RecentJobsPage() {
     if (!user?.id) return;
     supabase
       .from("applications")
-      .select("job_data, applied_at, status")
+      .select("id, job_data, applied_at, status")
       .eq("user_id", user.id)
       .order("applied_at", { ascending: false })
-      .then(({ data }) => setApplied((data || []).map((r) => ({ job_data: r.job_data as Job, applied_at: r.applied_at, status: r.status || "Submitted" }))));
+      .then(({ data }) => setApplied((data || []).map((r) => ({ id: r.id, job_data: r.job_data as Job, applied_at: r.applied_at, status: r.status || "Submitted" }))));
   }, [user?.id]);
 
   const unsave = async (jobId: string) => {
     if (!user?.id) return;
     await supabase.from("saved_jobs").delete().eq("user_id", user.id).eq("job_id", jobId);
     setSaved((s) => s.filter((x) => x.job_data.id !== jobId));
+  };
+
+  const unapply = async (jobId: string) => {
+    if (!user?.id) return;
+    await supabase.from("applications").delete().eq("user_id", user.id).eq("job_id", jobId);
+    setApplied((s) => s.filter((x) => x.job_data.id !== jobId));
   };
 
   const tabs = [
@@ -209,19 +215,30 @@ export function RecentJobsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {applied.map(({ job_data: job, applied_at, status }) => {
+                  {applied.map(({ id, job_data: job, applied_at, status }) => {
                     const days = Math.floor((Date.now() - new Date(applied_at).getTime()) / 86400000);
                     return (
-                      <tr key={job.id} className="border-b" style={{ borderColor: "var(--border-light)" }}>
+                      <tr key={id} className="border-b" style={{ borderColor: "var(--border-light)" }}>
                         <td className="p-3 font-medium text-text-primary">{job.title}</td>
                         <td className="p-3 text-text-secondary">{job.company}</td>
                         <td className="p-3 text-text-muted">{new Date(applied_at).toLocaleDateString()}</td>
                         <td className="p-3">
-                          <span className={`rounded-full px-2 py-1 text-xs ${STATUS_STYLES[status] || "bg-gray-100"}`}>{status}</span>
+                          <span className={`inline-block rounded-full px-2 py-1 text-xs font-medium ${STATUS_STYLES[status] || "bg-gray-100 text-gray-800"}`}>
+                            {status}
+                          </span>
                         </td>
                         <td className="p-3 text-text-muted">{days}d</td>
                         <td className="p-3">
-                          <button type="button" className="text-sm font-medium text-primary">Track application</button>
+                          <div className="flex items-center gap-2">
+                            {job.applyUrl && (
+                              <a href={job.applyUrl} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-primary hover:underline">
+                                Open job
+                              </a>
+                            )}
+                            <button type="button" className="text-sm text-text-muted hover:underline" onClick={() => unapply(job.id)}>
+                              Remove
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );

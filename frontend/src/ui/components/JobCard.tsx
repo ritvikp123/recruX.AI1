@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Bookmark, X, Sparkles, ExternalLink } from "lucide-react";
+import { Bookmark, X, Sparkles, ExternalLink, CheckCircle } from "lucide-react";
 import type { Job } from "../../types/jobs";
 
 function daysSincePosted(dateString: string | undefined): number {
@@ -10,9 +10,13 @@ function daysSincePosted(dateString: string | undefined): number {
 interface Props {
   job: Job;
   saved: boolean;
+  applied?: boolean;
   onToggleSaved: () => void;
   onNotInterested: () => void;
   onClick: () => void;
+  onApply?: (job: Job) => void;
+  onMarkApplied?: (job: Job) => void;
+  onUnapply?: (job: Job) => void;
 }
 
 function formatPostedAt(iso: string): string {
@@ -42,7 +46,7 @@ const SOURCE_STYLES: Record<string, string> = {
 function SourceBadge({ source }: { source?: string }) {
   if (!source) return null;
   const lower = source.toLowerCase();
-  const style = SOURCE_STYLES[Object.keys(SOURCE_STYLES).find((k) => lower.includes(k)) || ""] || "bg-primary text-white";
+  const style = SOURCE_STYLES[Object.keys(SOURCE_STYLES).find((k) => lower.includes(k)) || ""] || "bg-[#5E5CE6] text-white";
   const label = lower.includes("linkedin")
     ? "via LinkedIn"
     : lower.includes("indeed")
@@ -53,25 +57,34 @@ function SourceBadge({ source }: { source?: string }) {
           ? "via ZipRecruiter"
           : `via ${source}`;
   return (
-    <span className={`rounded-full px-2 py-0.5 text-[8px] font-semibold ${style}`} title={`Job from ${source}`}>
+    <span className={`rounded px-2 py-0.5 text-[8px] font-semibold ${style}`} style={{ borderRadius: 4 }} title={`Job from ${source}`}>
       {label}
     </span>
   );
 }
 
+function getMatchLabel(score: number): string {
+  if (score >= 90) return "Strong match";
+  if (score >= 70) return "Good match";
+  if (score >= 50) return "Partial match";
+  if (score >= 30) return "Weak match";
+  if (score > 0) return "Low match";
+  return "Upload resume";
+}
+
 function MatchRing({ value }: { value: number }) {
   const radius = 34;
   const circumference = 2 * Math.PI * radius;
-  const offset = circumference - (value / 100) * circumference;
+  const offset = circumference - (Math.min(100, Math.max(0, value)) / 100) * circumference;
 
   return (
     <svg width="90" height="90" className="block">
-      <circle cx="45" cy="45" r={radius} stroke="rgba(255,255,255,0.15)" strokeWidth="6" fill="none" />
+      <circle cx="45" cy="45" r={radius} stroke="#E8E8E6" strokeWidth="6" fill="none" />
       <motion.circle
         cx="45"
         cy="45"
         r={radius}
-        stroke="var(--accent)"
+        stroke="#5E5CE6"
         strokeWidth="6"
         fill="none"
         strokeDasharray={circumference}
@@ -86,7 +99,8 @@ function MatchRing({ value }: { value: number }) {
         y="50%"
         dominantBaseline="central"
         textAnchor="middle"
-        className="fill-white text-lg font-bold"
+        className="text-lg font-bold"
+        style={{ fill: "#1A1A1A" }}
       >
         {value}%
       </text>
@@ -94,7 +108,7 @@ function MatchRing({ value }: { value: number }) {
   );
 }
 
-export function JobCard({ job, saved, onToggleSaved, onNotInterested, onClick }: Props) {
+export function JobCard({ job, saved, applied, onToggleSaved, onNotInterested, onClick, onApply, onMarkApplied, onUnapply }: Props) {
   const postedAgo = job.postedAgo || formatPostedAt(job.postedAt);
   const daysOld = daysSincePosted(job.postedAt);
   const isStale = daysOld > 21;
@@ -106,24 +120,24 @@ export function JobCard({ job, saved, onToggleSaved, onNotInterested, onClick }:
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: 10 }}
       transition={{ duration: 0.2 }}
-      className="group relative cursor-pointer overflow-hidden rounded-card border bg-bg-card p-4 shadow-sm transition hover:border-primary/50"
-      style={{ borderColor: "var(--border)" }}
+      className="group relative cursor-pointer overflow-hidden rounded-card border border-[#E8E8E6] bg-white p-4 transition hover:border-[#C8C8C4]"
       onClick={onClick}
     >
       {isStale && (
         <div
-          className="mb-2 rounded-button px-2 py-1 text-[10px] font-medium"
-          style={{ background: "#fef3c7", color: "#92400e" }}
+          className="mb-2 rounded px-2 py-1 text-[10px] font-medium"
+          style={{ background: "#FFFBEB", color: "#D97706", borderRadius: 4 }}
         >
           ⚠ This job was posted {daysOld} days ago — may be filled
         </div>
       )}
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
-          <div className="flex items-center justify-between gap-2 text-xs text-text-muted">
+          <div className="flex items-center justify-between gap-2 text-[12px]" style={{ color: "#8A8A85" }}>
             <span
               title={job.postedAt ? `Posted on ${formatFullDate(job.postedAt)}` : undefined}
-              className={daysOld > 30 ? "font-medium text-amber-600" : ""}
+              className={daysOld > 30 ? "font-medium" : ""}
+              style={daysOld > 30 ? { color: "#D97706" } : undefined}
             >
               {daysOld > 30 && "⚠ "}
               {postedAgo}
@@ -139,11 +153,13 @@ export function JobCard({ job, saved, onToggleSaved, onNotInterested, onClick }:
               <img
                 src={job.companyLogo}
                 alt=""
-                className="h-12 w-12 shrink-0 rounded-lg object-contain bg-bg-badge"
+                className="h-12 w-12 shrink-0 rounded-lg object-contain"
+                style={{ background: "#F4F4F2", border: "1px solid #E8E8E6" }}
               />
             ) : (
               <div
-                className={`mt-1 flex h-12 w-12 shrink-0 items-center justify-center rounded-lg text-xs font-semibold text-white ${job.logoColor || "bg-emerald-500"}`}
+                className={`mt-1 flex h-12 w-12 shrink-0 items-center justify-center rounded-lg text-xs font-semibold text-white ${job.logoColor || ""}`}
+                style={{ background: job.logoColor || "#5E5CE6" }}
               >
                 {job.company
                   .split(" ")
@@ -154,16 +170,16 @@ export function JobCard({ job, saved, onToggleSaved, onNotInterested, onClick }:
               </div>
             )}
             <div className="min-w-0 flex-1">
-              <h3 className="font-heading text-sm font-bold text-text-primary md:text-[15px]">
+              <h3 className="text-[14px] font-medium md:text-[15px]" style={{ color: "#1A1A1A" }}>
                 {job.title}
               </h3>
-              <p className="text-xs text-text-secondary">
+              <p className="text-[12px]" style={{ color: "#8A8A85" }}>
                 {job.company}
                 {job.industryStage ? ` · ${job.industryStage}` : ""}
               </p>
             </div>
           </div>
-          <div className="grid gap-1 text-xs text-text-secondary md:grid-cols-2">
+          <div className="grid gap-1 text-[12px]" style={{ color: "#8A8A85" }}>
             <div>📍 {job.location}</div>
             <div>🕐 {job.type === "internship" ? "Internship" : job.type}</div>
             <div>💰 {job.salary}</div>
@@ -171,7 +187,7 @@ export function JobCard({ job, saved, onToggleSaved, onNotInterested, onClick }:
             <div>🎓 {job.experienceLabel || job.years || "—"}</div>
           </div>
           {(job.applicantCount || job.isEarlyApplicant) && (
-            <p className="text-[10px]" style={{ color: "var(--accent)" }}>
+            <p className="text-[10px] text-[#5E5CE6]">
               {job.applicantCount || (job.isEarlyApplicant ? "Be an early applicant" : "")}
             </p>
           )}
@@ -179,16 +195,16 @@ export function JobCard({ job, saved, onToggleSaved, onNotInterested, onClick }:
             {(job.tags || []).slice(0, 4).map((tag) => (
               <span
                 key={tag}
-                className="rounded-full px-2 py-0.5 text-[10px]"
-                style={{ background: "var(--bg-badge)", color: "var(--primary)" }}
+                className="rounded px-2 py-0.5 text-[12px]"
+                style={{ background: "#F4F4F2", border: "1px solid #E8E8E6", color: "#3D3D3A", borderRadius: 4 }}
               >
                 {tag}
               </span>
             ))}
             {(job.tags?.length ?? 0) > 4 && (
               <span
-                className="rounded-full px-2 py-0.5 text-[10px]"
-                style={{ background: "var(--bg-purple)", color: "var(--secondary)" }}
+                className="rounded px-2 py-0.5 text-[12px]"
+                style={{ background: "#F4F4F2", border: "1px solid #E8E8E6", color: "#8A8A85", borderRadius: 4 }}
               >
                 +{(job.tags?.length ?? 0) - 4}
               </span>
@@ -197,8 +213,7 @@ export function JobCard({ job, saved, onToggleSaved, onNotInterested, onClick }:
           <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
             <button
               type="button"
-              className="inline-flex items-center gap-1 rounded-button border px-2.5 py-1 text-text-muted transition hover:bg-border-light hover:text-text-secondary"
-              style={{ borderColor: "var(--border)" }}
+              className="inline-flex items-center gap-1 rounded-[6px] border border-[#E8E8E6] bg-white px-2.5 py-1 text-[#3D3D3A] transition hover:bg-[#F4F4F2] hover:border-[#C8C8C4]"
               onClick={(e) => {
                 e.stopPropagation();
                 onNotInterested();
@@ -209,62 +224,106 @@ export function JobCard({ job, saved, onToggleSaved, onNotInterested, onClick }:
             </button>
             <button
               type="button"
-              className={`inline-flex items-center gap-1 rounded-button px-2.5 py-1 transition ${
+              className={`inline-flex items-center gap-1 rounded-[6px] px-2.5 py-1 transition ${
                 saved
-                  ? "bg-bg-teal text-accent"
-                  : "border border-border bg-bg-card text-text-secondary hover:bg-border-light"
+                  ? "bg-[#EEEEFD] text-[#5E5CE6]"
+                  : "border border-[#E8E8E6] bg-white text-[#3D3D3A] hover:bg-[#F4F4F2] hover:border-[#C8C8C4]"
               }`}
-              style={saved ? {} : { borderColor: "var(--border)" }}
               onClick={(e) => {
                 e.stopPropagation();
                 onToggleSaved();
               }}
             >
-              <Bookmark size={12} className={saved ? "fill-accent text-accent" : ""} />
+              <Bookmark size={12} className={saved ? "fill-[#5E5CE6] text-[#5E5CE6]" : ""} />
               <span>{saved ? "Saved" : "Save"}</span>
             </button>
             <button
               type="button"
-              className="inline-flex items-center gap-1 rounded-button border-2 px-2.5 py-1 font-medium transition hover:bg-bg-hero"
-              style={{ borderColor: "var(--primary)", color: "var(--primary)" }}
+              className="inline-flex items-center gap-1 rounded-[6px] border border-[#E8E8E6] bg-white px-2.5 py-1 text-sm font-medium text-[#5E5CE6] transition hover:bg-[#F4F4F2] hover:border-[#C8C8C4]"
               onClick={(e) => e.stopPropagation()}
             >
               <Sparkles size={12} />
               <span>✦ ASK ARIA</span>
             </button>
-            {job.applyUrl ? (
-              <a
-                href={job.applyUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="ml-auto inline-flex items-center gap-1 rounded-button px-3 py-1.5 text-xs font-bold text-white transition hover:opacity-90"
-                style={{ background: "var(--accent)" }}
-                onClick={(e) => e.stopPropagation()}
-                title={`Opens on ${job.source || "job board"} website`}
-              >
-                Apply Now
-                <ExternalLink size={12} />
-              </a>
+            {applied ? (
+              <div className="ml-auto flex items-center gap-2">
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1 rounded-[6px] px-2.5 py-1 text-xs font-medium transition hover:opacity-80"
+                  style={{ background: "#F0FDF4", color: "#16A34A" }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onUnapply?.(job);
+                  }}
+                  title="Unselect to remove from Applied"
+                >
+                  <CheckCircle size={12} />
+                  Applied
+                </button>
+                {job.applyUrl && (
+                  <a
+                    href={job.applyUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="rounded-[6px] border border-[#E8E8E6] px-2 py-1 text-xs font-medium text-[#5E5CE6] hover:bg-[#F4F4F2] hover:border-[#C8C8C4]"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    Open
+                  </a>
+                )}
+              </div>
             ) : (
-              <button
-                type="button"
-                className="ml-auto inline-flex items-center gap-1 rounded-button px-3 py-1.5 text-xs font-bold text-white transition hover:opacity-90"
-                style={{ background: "var(--accent)" }}
-                onClick={(e) => e.stopPropagation()}
-              >
-                APPLY NOW
-              </button>
+              <div className="ml-auto flex items-center gap-2">
+                {job.applyUrl ? (
+                  <a
+                    href={job.applyUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex h-[34px] items-center gap-1 rounded-[6px] bg-[#5E5CE6] px-3 py-1.5 text-xs font-medium text-white transition hover:bg-[#4A48CC]"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onApply?.(job);
+                    }}
+                    title={`Opens on ${job.source || "job board"} website`}
+                  >
+                    Apply Now
+                    <ExternalLink size={12} />
+                  </a>
+                ) : (
+                  <button
+                    type="button"
+                    className="inline-flex h-[34px] items-center gap-1 rounded-[6px] bg-[#5E5CE6] px-3 py-1.5 text-xs font-medium text-white transition hover:bg-[#4A48CC]"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onApply?.(job);
+                    }}
+                  >
+                    APPLY NOW
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="rounded-[6px] border border-[#E8E8E6] px-2 py-1 text-xs text-[#3D3D3A] transition hover:bg-[#F4F4F2] hover:border-[#C8C8C4]"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onMarkApplied?.(job);
+                  }}
+                  title="I already applied to this job elsewhere"
+                >
+                  I applied
+                </button>
+              </div>
             )}
           </div>
         </div>
         <div
           className="flex items-center justify-center rounded-card px-3 py-4 text-center"
-          style={{ background: "#312E81" }}
+          style={{ background: "#EEEEFD", border: "1px solid #E8E8E6" }}
         >
           <div>
             <MatchRing value={job.match} />
-            <p className="mt-1 text-[10px] font-semibold text-white">STRONG MATCH</p>
-            {job.h1bStatus && <p className="mt-1 text-[10px] text-white/80">✓ {job.h1bStatus}</p>}
+            <p className="mt-1 text-[10px] font-medium uppercase" style={{ color: "#5E5CE6" }}>{getMatchLabel(job.match)}</p>
+            {job.h1bStatus && <p className="mt-1 text-[10px] text-[#3D3D3A]">✓ {job.h1bStatus}</p>}
           </div>
         </div>
       </div>

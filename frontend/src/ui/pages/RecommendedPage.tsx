@@ -23,6 +23,7 @@ export function RecommendedPage() {
   const [prefsModalOpen, setPrefsModalOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
+  const [appliedIds, setAppliedIds] = useState<Set<string>>(new Set());
   const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
@@ -62,6 +63,17 @@ export function RecommendedPage() {
       setShowPrefsPrompt(!hasField || !hasExperience);
     };
     load();
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    supabase
+      .from("applications")
+      .select("job_id")
+      .eq("user_id", user.id)
+      .then(({ data }) => {
+        if (data) setAppliedIds(new Set(data.map((r) => r.job_id)));
+      });
   }, [user?.id]);
 
   const { jobs, loading, error, refetch } = useJobs({
@@ -110,6 +122,29 @@ export function RecommendedPage() {
   const openDetail = (job: Job) => {
     setSelectedJob(job);
     setDetailOpen(true);
+  };
+
+  const recordApplied = async (job: Job) => {
+    if (!user?.id) return;
+    const jobData = JSON.parse(JSON.stringify(job));
+    const { error } = await supabase.from("applications").insert({
+      user_id: user.id,
+      job_id: job.id,
+      job_data: jobData,
+      status: "Submitted",
+      auto_applied: false,
+    });
+    if (!error) setAppliedIds((prev) => new Set([...prev, job.id]));
+  };
+
+  const removeApplied = async (job: Job) => {
+    if (!user?.id) return;
+    await supabase.from("applications").delete().eq("user_id", user.id).eq("job_id", job.id);
+    setAppliedIds((prev) => {
+      const next = new Set(prev);
+      next.delete(job.id);
+      return next;
+    });
   };
 
   const filterChipClass =
@@ -277,9 +312,13 @@ export function RecommendedPage() {
                       <JobCard
                         job={job}
                         saved={savedIds.has(job.id)}
+                        applied={appliedIds.has(job.id)}
                         onToggleSaved={() => toggleSaved(job.id)}
                         onNotInterested={() => markHidden(job.id)}
                         onClick={() => openDetail(job)}
+                        onApply={recordApplied}
+                        onMarkApplied={recordApplied}
+                        onUnapply={removeApplied}
                       />
                     </motion.div>
                   ))}
@@ -326,7 +365,15 @@ export function RecommendedPage() {
           <AICopilotPanel activeJob={selectedJob} />
         </div>
       </div>
-      <JobDetailPanel job={selectedJob} open={detailOpen} onClose={() => setDetailOpen(false)} />
+      <JobDetailPanel
+        job={selectedJob}
+        open={detailOpen}
+        onClose={() => setDetailOpen(false)}
+        applied={selectedJob ? appliedIds.has(selectedJob.id) : false}
+        onApply={recordApplied}
+        onMarkApplied={recordApplied}
+        onUnapply={removeApplied}
+      />
     </div>
   );
 }

@@ -1,11 +1,19 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { Check, X, FileText, Loader2, BarChart3 } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Check, X, FileText, Loader2, BarChart3, Lightbulb, Copy } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { supabase } from "../../lib/supabase";
-import { scoreJob } from "../../lib/api";
+import { scoreJob, chat } from "../../lib/api";
+import { computeMatchScore } from "../../lib/matchScore";
 import { searchJobs, normalizeJob } from "../../api/jobs";
 import type { Job } from "../../types/jobs";
+
+interface ParsedMatch {
+  youHave: string[];
+  youreMissing: string[];
+  quickWins: string[];
+}
 
 interface MatchResult {
   score: number;
@@ -16,63 +24,50 @@ interface MatchResult {
   experience_match: string;
   recommendation: string;
   tips: string[];
+  parsed?: ParsedMatch;
+  isAiRefined?: boolean;
 }
 
-function ScoreRingDisplay({ score }: { score: number }) {
-  const radius = 50;
-  const circumference = 2 * Math.PI * radius;
-  const offset = circumference - (score / 100) * circumference;
-  const color =
-    score >= 90
-      ? "var(--accent)"
-      : score >= 70
-        ? "var(--primary)"
-        : score >= 50
-          ? "#f59e0b"
-          : "#ef4444";
-  const label =
-    score >= 90
-      ? "Strong Match"
-      : score >= 70
-        ? "Good Match"
-        : score >= 50
-          ? "Partial Match"
-          : "Low Match";
+/** Parse reasoning from backend into you_have, missing, quick_wins. Falls back to quick score data. */
+function parseReasoning(
+  reasoning: string | undefined,
+  fallbackMatched: string[],
+  fallbackMissing: string[]
+): ParsedMatch {
+  const result: ParsedMatch = { youHave: [], youreMissing: [], quickWins: [] };
+  if (!reasoning?.trim()) {
+    return { youHave: fallbackMatched, youreMissing: fallbackMissing, quickWins: [] };
+  }
+  const lines = reasoning.split(/\r?\n/).map((l) => l.trim());
+  for (const line of lines) {
+    const youHaveMatch = line.match(/^YOU_HAVE:\s*(.+)$/i);
+    if (youHaveMatch) {
+      const val = youHaveMatch[1].trim();
+      result.youHave = val.toLowerCase() === "none" ? [] : val.split(",").map((s) => s.trim()).filter(Boolean);
+      continue;
+    }
+    const missingMatch = line.match(/^MISSING:\s*(.+)$/i);
+    if (missingMatch) {
+      const val = missingMatch[1].trim();
+      result.youreMissing = val.toLowerCase() === "none" ? [] : val.split(",").map((s) => s.trim()).filter(Boolean);
+      continue;
+    }
+    const quickMatch = line.match(/^QUICK_WINS:\s*(.+)$/i);
+    if (quickMatch) {
+      const val = quickMatch[1].trim();
+      result.quickWins = val.split(";").map((s) => s.trim()).filter(Boolean);
+    }
+  }
+  if (result.youHave.length === 0 && result.youreMissing.length === 0) {
+    result.youHave = fallbackMatched;
+    result.youreMissing = fallbackMissing;
+  }
+  return result;
+}
 
-  return (
-    <div className="flex flex-col items-center">
-      <div className="relative h-[140px] w-[140px]">
-        <svg width="140" height="140" className="block -rotate-90">
-          <circle
-            cx="70"
-            cy="70"
-            r={radius}
-            stroke="var(--border)"
-            strokeWidth="10"
-            fill="none"
-          />
-          <circle
-            cx="70"
-            cy="70"
-            r={radius}
-            stroke={color}
-            strokeWidth="10"
-            fill="none"
-            strokeDasharray={circumference}
-            strokeDashoffset={offset}
-            strokeLinecap="round"
-            style={{ transition: "stroke-dashoffset 0.6s ease" }}
-          />
-        </svg>
-        <span className="absolute inset-0 flex items-center justify-center text-2xl font-bold text-text-primary">
-          {score}%
-        </span>
-      </div>
-      <span className="mt-2 text-sm font-medium" style={{ color }}>
-        {label}
-      </span>
-    </div>
-  );
+/** Instant skill-based score (no API call). Uses same logic as Search Jobs for consistency. */
+function computeQuickScore(resumeText: string, skills: string[], jobDescription: string) {
+  return computeMatchScore(resumeText, skills, jobDescription, []);
 }
 
 interface ResumeMatchPageProps {
@@ -90,8 +85,14 @@ export function ResumeMatchPage({ onGoToUpload }: ResumeMatchPageProps = {}) {
   const [resumeText, setResumeText] = useState<string>("");
   const [skills, setSkills] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+  const [aiRefining, setAiRefining] = useState(false);
   const [result, setResult] = useState<MatchResult | null>(null);
   const [history, setHistory] = useState<{ id: string; score: number; job_description: string; analyzed_at: string }[]>([]);
+  const [tailorModalOpen, setTailorModalOpen] = useState(false);
+  const [tailorLoading, setTailorLoading] = useState(false);
+  const [tailoredContent, setTailoredContent] = useState("");
+  const [tailorError, setTailorError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -165,50 +166,98 @@ export function ResumeMatchPage({ onGoToUpload }: ResumeMatchPageProps = {}) {
   const analyze = async () => {
     const text = jobDescription.trim();
     if (!text) return;
-    if (!resumeText.trim()) {
-      return;
-    }
+    if (!resumeText.trim()) return;
     setLoading(true);
     setResult(null);
+    setAiRefining(false);
+
+    // 1. Show instant quick score (no API call)
+    const quick = computeQuickScore(resumeText, skills, text);
+    const quickResult: MatchResult = {
+      score: quick.score,
+      matched_skills: quick.matched,
+      missing_skills: quick.missing,
+      matched_keywords: quick.matched,
+      missing_keywords: quick.missing,
+      experience_match: "Quick estimate based on skills.",
+      recommendation: "Refining with AI analysis…",
+      tips: [],
+      parsed: { youHave: quick.matched, youreMissing: quick.missing, quickWins: [] },
+      isAiRefined: false,
+    };
+    setResult(quickResult);
+    setLoading(false);
+    setAiRefining(true);
+
+    // 2. Fetch AI score in background, update when ready
     try {
       const { scores } = await scoreJob(resumeText, text);
       const s = scores[0];
-      const mapped: MatchResult = {
-        score: s?.match_score ?? 0,
-        matched_skills: [],
-        missing_skills: [],
-        matched_keywords: [],
-        missing_keywords: [],
+      const parsed = parseReasoning(s?.reasoning, quick.matched, quick.missing);
+      const aiResult: MatchResult = {
+        score: s?.match_score ?? quick.score,
+        matched_skills: quick.matched,
+        missing_skills: quick.missing,
+        matched_keywords: quick.matched,
+        missing_keywords: quick.missing,
         experience_match: s?.reasoning ?? "",
         recommendation: s?.reasoning ?? "Unable to analyze.",
-        tips: [],
+        tips: parsed.quickWins,
+        parsed,
+        isAiRefined: true,
       };
-      setResult(mapped);
-      if (user?.id && mapped) {
+      setResult(aiResult);
+      if (user?.id && aiResult) {
         await supabase.from("match_analyses").insert({
           user_id: user.id,
           job_description: text.slice(0, 10000),
-          score: mapped.score,
-          results: mapped,
+          score: aiResult.score,
+          results: aiResult,
         });
       }
     } catch {
-      setResult({
-        score: 0,
-        matched_skills: [],
-        missing_skills: [],
-        matched_keywords: [],
-        missing_keywords: [],
-        experience_match: "Unable to analyze.",
-        recommendation: "Analysis failed. Please try again.",
-        tips: [],
-      });
+      setResult((prev) =>
+        prev
+          ? { ...prev, recommendation: "AI analysis failed. Showing skill-based estimate.", isAiRefined: false }
+          : quickResult
+      );
     } finally {
-      setLoading(false);
+      setAiRefining(false);
     }
   };
 
   const hasResume = !!resumeText.trim();
+
+  const handleTailorResume = async () => {
+    if (!resumeText.trim() || !jobDescription.trim()) return;
+    setTailorModalOpen(true);
+    setTailorLoading(true);
+    setTailoredContent("");
+    setTailorError(null);
+    try {
+      const userContext = `Resume:\n${resumeText}\n\nJob Description:\n${jobDescription}`;
+      const { response } = await chat(
+        "Rewrite these resume bullet points to better match this job description",
+        userContext
+      );
+      setTailoredContent(response);
+    } catch (e) {
+      setTailorError(e instanceof Error ? e.message : "Failed to tailor resume.");
+    } finally {
+      setTailorLoading(false);
+    }
+  };
+
+  const handleCopyTailored = async () => {
+    if (!tailoredContent) return;
+    try {
+      await navigator.clipboard.writeText(tailoredContent);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setTailorError("Could not copy to clipboard.");
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -375,103 +424,168 @@ export function ResumeMatchPage({ onGoToUpload }: ResumeMatchPageProps = {}) {
             </div>
           )}
 
-          {/* Match results */}
+          {/* Match results — You have, You're missing, Quick wins */}
           {result && !loading && (
             <div className="space-y-6">
-              <div
-                className="flex flex-col items-center rounded-card border bg-bg-card p-8"
-                style={{ borderColor: "var(--border)" }}
+              {aiRefining && (
+                <p className="flex items-center gap-2 text-sm text-text-muted">
+                  <Loader2 size={16} className="animate-spin" />
+                  Refining with AI analysis…
+                </p>
+              )}
+
+              <div className="grid gap-4 sm:grid-cols-3">
+                {/* 1. You have */}
+                <div
+                  className="rounded-card border bg-bg-card p-4"
+                  style={{ borderColor: "var(--border)" }}
+                >
+                  <h3 className="font-semibold text-text-primary">You have</h3>
+                  <p className="mt-0.5 text-xs text-text-muted">Skills from the job that match your resume</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {(result.parsed?.youHave ?? result.matched_skills).length > 0 ? (
+                      (result.parsed?.youHave ?? result.matched_skills).map((s) => (
+                        <span
+                          key={s}
+                          className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-1 text-sm text-green-800"
+                        >
+                          <Check size={12} />
+                          {s}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-sm text-text-muted">None identified</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* 2. You're missing */}
+                <div
+                  className="rounded-card border bg-bg-card p-4"
+                  style={{ borderColor: "var(--border)" }}
+                >
+                  <h3 className="font-semibold text-text-primary">You&apos;re missing</h3>
+                  <p className="mt-0.5 text-xs text-text-muted">Skills the job needs that aren&apos;t in your resume</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {(result.parsed?.youreMissing ?? result.missing_skills).length > 0 ? (
+                      (result.parsed?.youreMissing ?? result.missing_skills).map((s) => (
+                        <span
+                          key={s}
+                          className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2.5 py-1 text-sm text-red-700"
+                        >
+                          <X size={12} />
+                          {s}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-sm text-text-muted">None — great fit!</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* 3. Quick wins */}
+                <div
+                  className="rounded-card border bg-bg-card p-4"
+                  style={{ borderColor: "var(--border)" }}
+                >
+                  <h3 className="font-semibold text-text-primary">Quick wins</h3>
+                  <p className="mt-0.5 text-xs text-text-muted">2–3 suggestions to close the gap</p>
+                  <div className="mt-3 space-y-2">
+                    {(result.parsed?.quickWins ?? result.tips).length > 0 ? (
+                      (result.parsed?.quickWins ?? result.tips).map((t, i) => (
+                        <div
+                          key={i}
+                          className="flex items-start gap-2 rounded-button border-l-2 border-primary pl-3 py-1 text-sm text-text-secondary"
+                          style={{ borderLeftColor: "var(--accent)" }}
+                        >
+                          <Lightbulb size={14} className="mt-0.5 shrink-0 text-amber-500" />
+                          <span>{t}</span>
+                        </div>
+                      ))
+                    ) : (
+                      <span className="text-sm text-text-muted">Complete the analysis for AI suggestions</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleTailorResume}
+                className="rounded-button border-2 px-4 py-2 text-sm font-semibold transition hover:bg-bg-hero"
+                style={{ borderColor: "var(--primary)", color: "var(--primary)" }}
               >
-                <ScoreRingDisplay score={result.score} />
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                <div
-                  className="rounded-card border bg-bg-card p-4"
-                  style={{ borderColor: "var(--border)" }}
-                >
-                  <h3 className="font-medium text-text-primary">Skills Match</h3>
-                  <div className="mt-2 space-y-1">
-                    {result.matched_skills.slice(0, 3).map((s) => (
-                      <div key={s} className="flex items-center gap-2 text-sm text-green-700">
-                        <Check size={14} />
-                        {s}
-                      </div>
-                    ))}
-                    {result.missing_skills.slice(0, 3).map((s) => (
-                      <div key={s} className="flex items-center gap-2 text-sm text-red-600">
-                        <X size={14} />
-                        {s}
-                      </div>
-                    ))}
-                  </div>
-                  <p className="mt-2 text-xs text-text-muted">
-                    {result.matched_skills.length}/
-                    {result.matched_skills.length + result.missing_skills.length}{" "}
-                    skills matched
-                  </p>
-                </div>
-
-                <div
-                  className="rounded-card border bg-bg-card p-4"
-                  style={{ borderColor: "var(--border)" }}
-                >
-                  <h3 className="font-medium text-text-primary">
-                    Experience Match
-                  </h3>
-                  <p className="mt-2 text-sm text-text-secondary">
-                    {result.experience_match || "—"}
-                  </p>
-                </div>
-
-                <div
-                  className="rounded-card border bg-bg-card p-4"
-                  style={{ borderColor: "var(--border)" }}
-                >
-                  <h3 className="font-medium text-text-primary">
-                    Keywords Match
-                  </h3>
-                  <div className="mt-2 flex flex-wrap gap-1">
-                    {result.matched_keywords.slice(0, 5).map((kw) => (
-                      <span
-                        key={kw}
-                        className="rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-800"
-                      >
-                        {kw}
-                      </span>
-                    ))}
-                    {result.missing_keywords.slice(0, 3).map((kw) => (
-                      <span
-                        key={kw}
-                        className="rounded-full bg-red-100 px-2 py-0.5 text-xs text-red-800"
-                      >
-                        {kw}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-
-                <div
-                  className="rounded-card border bg-bg-card p-4"
-                  style={{ borderColor: "var(--border)" }}
-                >
-                  <h3 className="font-medium text-text-primary">
-                    Overall Recommendation
-                  </h3>
-                  <p className="mt-2 text-sm text-text-secondary">
-                    {result.recommendation}
-                  </p>
-                  {result.tips.length > 0 && (
-                    <ul className="mt-3 list-inside list-disc space-y-1 text-xs text-text-muted">
-                      {result.tips.map((t, i) => (
-                        <li key={i}>{t}</li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              </div>
+                Tailor My Resume
+              </button>
             </div>
           )}
+
+          {/* Tailor Resume Modal */}
+          <AnimatePresence>
+            {tailorModalOpen && (
+              <>
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="fixed inset-0 z-50 bg-black/50"
+                  onClick={() => !tailorLoading && setTailorModalOpen(false)}
+                />
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  onClick={(e) => e.stopPropagation()}
+                  className="fixed left-1/2 top-1/2 z-50 w-full max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-card border bg-bg-card p-4 shadow-xl"
+                  style={{ borderColor: "var(--border)" }}
+                >
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-semibold text-text-primary">Tailored Resume Bullets</h3>
+                    <button
+                      type="button"
+                      onClick={() => !tailorLoading && setTailorModalOpen(false)}
+                      className="rounded-button p-1 text-text-muted hover:bg-bg-hero hover:text-text-primary"
+                    >
+                      <X size={20} />
+                    </button>
+                  </div>
+                  <div className="mt-4 max-h-[60vh] overflow-y-auto">
+                    {tailorLoading ? (
+                      <div className="flex items-center gap-2 py-8 text-text-muted">
+                        <Loader2 size={20} className="animate-spin" />
+                        Rewriting your resume bullets…
+                      </div>
+                    ) : tailorError ? (
+                      <p className="py-4 text-sm text-red-600">{tailorError}</p>
+                    ) : tailoredContent ? (
+                      <pre className="whitespace-pre-wrap rounded-button border bg-bg-page p-3 text-sm text-text-primary" style={{ borderColor: "var(--border)" }}>
+                        {tailoredContent}
+                      </pre>
+                    ) : null}
+                  </div>
+                  {tailoredContent && (
+                    <button
+                      type="button"
+                      onClick={handleCopyTailored}
+                      className="mt-4 flex w-full items-center justify-center gap-2 rounded-button bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90"
+                    >
+                      {copied ? (
+                        <>
+                          <Check size={16} />
+                          Copied!
+                        </>
+                      ) : (
+                        <>
+                          <Copy size={16} />
+                          Copy
+                        </>
+                      )}
+                    </button>
+                  )}
+                </motion.div>
+              </>
+            )}
+          </AnimatePresence>
 
           {/* History */}
           {history.length > 0 && (

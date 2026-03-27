@@ -1,44 +1,43 @@
 import type { Config } from "tailwindcss";
 
+/** Maps to CSS variables in src/styles.css :root */
+const brand = {
+  bg: "var(--bg-page)",
+  nav: "var(--bg-nav)",
+  card: "var(--bg-card)",
+  primary: "var(--primary)",
+  deep: "var(--text-deep)",
+  darkest: "var(--text-primary)",
+  border: "var(--border)",
+  muted: "var(--muted)",
+  light: "var(--light)",
+  mid: "var(--mid)",
+} as const;
+
 const config: Config = {
   content: ["./index.html", "./src/**/*.{ts,tsx}"],
   theme: {
     extend: {
       colors: {
-        primary: { DEFAULT: "var(--primary)", dark: "var(--primary-dark)" },
-        secondary: "var(--secondary)",
-        accent: { DEFAULT: "var(--accent)", dark: "var(--accent-dark)" },
-        "bg-page": "var(--bg-page)",
-        "bg-card": "var(--bg-card)",
-        "bg-hero": "var(--bg-hero)",
-        "bg-badge": "var(--bg-badge)",
-        "bg-purple": "var(--bg-purple)",
-        "bg-teal": "var(--bg-teal)",
-        "text-primary": "var(--text-primary)",
-        "text-secondary": "var(--text-secondary)",
-        "text-muted": "var(--text-muted)",
-        border: { DEFAULT: "var(--border)", light: "var(--border-light)" },
-        brand: {
-          50: "#f4f5ff",
-          100: "#e3e6ff",
-          500: "#6366f1",
-          600: "#4f46e5",
-          700: "#4338ca"
-        }
+        /** Auth & legacy forms use bg-js-brand-* */
+        js: {
+          brand,
+        },
+        /** Alias for any jsc-* classes */
+        jsc: {
+          brand,
+          status: {
+            great: { bg: "var(--great-bg)", text: "var(--great-text)" },
+            gap: { bg: "var(--gap-bg)", text: "var(--gap-text)" },
+          },
+        },
       },
-      fontFamily: {
-        heading: ['"Plus Jakarta Sans"', "system-ui", "sans-serif"],
-        body: ['"DM Sans"', "system-ui", "sans-serif"],
+      borderWidth: {
+        hairline: "0.5px",
       },
-      borderRadius: {
-        card: "12px",
-        button: "8px",
-        pill: "20px",
-      },
-    }
+    },
   },
-  plugins: []
+  plugins: [],
 };
 
 export default config;
-

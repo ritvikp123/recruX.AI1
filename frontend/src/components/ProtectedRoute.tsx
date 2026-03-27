@@ -7,8 +7,16 @@ export function ProtectedRoute({ children }: { children: JSX.Element }) {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-bg-page text-text-primary">
-        <div className="h-6 w-6 animate-spin rounded-full border-2 border-accent border-t-transparent" />
+      <div
+        style={{
+          minHeight: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          background: "var(--bg-page)",
+        }}
+      >
+        <div className="recrux-spinner" />
       </div>
     );
   }

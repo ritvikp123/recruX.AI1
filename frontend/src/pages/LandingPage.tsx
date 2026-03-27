@@ -1,357 +1,613 @@
-import { useState, useEffect } from "react";
+import React from "react";
 import { Link } from "react-router-dom";
-import { motion } from "framer-motion";
-import { ExternalLink } from "lucide-react";
-import { searchJobs } from "../api/jobs";
+import {
+  ArrowRight,
+  BarChart3,
+  Bookmark,
+  Briefcase,
+  Code2,
+  FileText,
+  Layers,
+  Search,
+  TrendingUp,
+  Zap,
+} from "lucide-react";
+import { R } from "../recrux/theme";
 
-const NAV_LINKS = [
-  { label: "Features", href: "#features" },
-  { label: "How it works", href: "#how-it-works" },
-  { label: "Blog", href: "#blog" },
-];
+const hairline = `0.5px solid ${R.border}`;
 
-const STATS = [
-  { value: "94%", label: "Match accuracy" },
-  { value: "50K+", label: "Jobs daily" },
-  { value: "3.2x", label: "Faster offers" },
-  { value: "12K+", label: "Active users" },
-];
-
-const FEATURES = [
+const PREVIEW_MATCH_CARDS = [
   {
-    icon: "✦",
-    title: "AI Match Scoring",
-    description: "See exactly how well you fit each role.",
+    title: "Product Engineer",
+    subtitle: "Northwind Labs · Remote",
+    pct: 89,
+    badge: "Strong match",
+    badgeBg: "var(--match-high-bg)",
+    badgeColor: "var(--match-high-text)",
+    blurb: "Stack lines up with your React and API experience.",
+    icon: <Briefcase size={20} strokeWidth={2} />,
   },
   {
-    icon: "⚡",
-    title: "Autofill Applications",
-    description: "Apply in seconds automatically.",
+    title: "Full Stack Developer",
+    subtitle: "Aurora Systems · Hybrid",
+    pct: 76,
+    badge: "Good match",
+    badgeBg: "var(--match-mid-bg)",
+    badgeColor: "var(--match-mid-text)",
+    blurb: "Strong on frontend; add one backend project to climb higher.",
+    icon: <Code2 size={20} strokeWidth={2} />,
   },
   {
-    icon: "◎",
-    title: "AI Copilot",
-    description: "Ask anything about any job or company.",
+    title: "Software Engineer II",
+    subtitle: "Contoso Analytics · San Francisco",
+    pct: 68,
+    badge: "Stretch role",
+    badgeBg: "var(--gap-bg)",
+    badgeColor: "var(--gap-text)",
+    blurb: "Keywords overlap — tighten system design on your resume.",
+    icon: <Layers size={20} strokeWidth={2} />,
   },
-];
+] as const;
 
-interface PreviewJob {
-  id: string;
-  title: string;
-  company: string;
-  location: string;
-  match: number;
-  tags: string[];
-  workplace: string;
-  applyUrl?: string;
-  source?: string;
-}
-
-function SourceBadge({ source }: { source?: string }) {
-  if (!source) return null;
-  const lower = source.toLowerCase();
-  const styles: Record<string, string> = {
-    linkedin: "bg-[#0A66C2] text-white",
-    indeed: "bg-[#2557a7] text-white",
-    glassdoor: "bg-[#0CAA41] text-white",
-    ziprecruiter: "bg-purple-600 text-white",
-  };
-  const style = styles[Object.keys(styles).find((k) => lower.includes(k)) || ""] || "bg-[#7c6ff7] text-white";
-  const label = lower.includes("linkedin")
-    ? "via LinkedIn"
-    : lower.includes("indeed")
-      ? "via Indeed"
-      : lower.includes("glassdoor")
-        ? "via Glassdoor"
-        : lower.includes("ziprecruiter")
-          ? "via ZipRecruiter"
-          : `via ${source}`;
+function LandingPreviewMatchCard({
+  title,
+  subtitle,
+  pct,
+  badge,
+  badgeBg,
+  badgeColor,
+  blurb,
+  icon,
+}: (typeof PREVIEW_MATCH_CARDS)[number]) {
   return (
-    <span className={`rounded px-2 py-0.5 text-[8px] font-semibold ${style}`} style={{ borderRadius: 4 }}>{label}</span>
+    <div
+      style={{
+        background: R.card,
+        border: hairline,
+        borderRadius: 14,
+        padding: 16,
+        boxShadow: "0 8px 28px rgba(4, 44, 83, 0.1)",
+        textAlign: "left",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+        <div
+          style={{
+            width: 40,
+            height: 40,
+            borderRadius: 10,
+            background: R.light,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            color: R.primary,
+            flexShrink: 0,
+          }}
+        >
+          {icon}
+        </div>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <p className="recrux-heading" style={{ fontSize: 15, fontWeight: 700, color: R.darkest, margin: 0 }}>
+            {title}
+          </p>
+          <p style={{ fontSize: 12, color: R.primary, fontWeight: 500, margin: "3px 0 0" }}>{subtitle}</p>
+          <div
+            style={{
+              marginTop: 10,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 10,
+              flexWrap: "wrap",
+            }}
+          >
+            <span
+              style={{
+                fontSize: 20,
+                fontWeight: 700,
+                color: R.primary,
+                fontFamily: "var(--font-heading)",
+                letterSpacing: "-0.02em",
+              }}
+            >
+              {pct}%
+            </span>
+            <span
+              style={{
+                fontSize: 10,
+                fontWeight: 600,
+                padding: "3px 8px",
+                borderRadius: 999,
+                background: badgeBg,
+                color: badgeColor,
+              }}
+            >
+              {badge}
+            </span>
+          </div>
+          <div
+            style={{
+              marginTop: 8,
+              height: 3,
+              borderRadius: 2,
+              background: R.muted,
+              overflow: "hidden",
+            }}
+          >
+            <div style={{ width: `${pct}%`, height: "100%", background: R.primary, borderRadius: 2 }} />
+          </div>
+        </div>
+      </div>
+      <p style={{ fontSize: 11, color: R.body, margin: "12px 0 0", lineHeight: 1.45 }}>{blurb}</p>
+    </div>
   );
 }
 
 export function LandingPage() {
-  const [previewJobs, setPreviewJobs] = useState<PreviewJob[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    searchJobs({ query: "AI Engineer", page: 1 })
-      .then((data) => {
-        const normalized: PreviewJob[] = (data || []).slice(0, 3).map((j) => ({
-          id: j.id,
-          title: j.job_title,
-          company: j.company_name,
-          location: j.location || "Remote",
-          match: 78 + Math.floor(Math.random() * 20),
-          tags: (j.skills_required || []).slice(0, 2),
-          workplace: j.remote_allowed ? "Remote" : "On-site",
-          applyUrl: j.job_listing_link,
-          source: undefined,
-        }));
-        setPreviewJobs(normalized);
-      })
-      .catch(() => setPreviewJobs([]))
-      .finally(() => setLoading(false));
-  }, []);
-
   return (
-    <div className="min-h-screen bg-[#EEF2FF]" style={{ fontFamily: "Inter, system-ui, sans-serif", color: "#1A1A1A" }}>
-      {/* Nav */}
-      <nav
-        className="sticky top-0 z-50 flex items-center justify-between border-b bg-white px-6 py-4 md:px-12"
-        style={{ borderColor: "#E8E8E6" }}
+    <div style={{ minHeight: "100vh", background: R.bg, position: "relative", overflow: "hidden" }}>
+      {/* soft background depth */}
+      <div
+        aria-hidden
+        style={{
+          pointerEvents: "none",
+          position: "absolute",
+          inset: 0,
+          background: `
+            radial-gradient(ellipse 80% 50% at 50% -20%, rgba(24, 95, 165, 0.18), transparent 55%),
+            radial-gradient(ellipse 60% 40% at 100% 30%, rgba(55, 138, 221, 0.12), transparent 50%),
+            radial-gradient(ellipse 50% 35% at 0% 70%, rgba(133, 183, 235, 0.2), transparent 45%)
+          `,
+        }}
+      />
+
+      <header
+        style={{
+          position: "relative",
+          zIndex: 2,
+          display: "flex",
+          height: 56,
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "0 22px",
+          background: "rgba(255, 255, 255, 0.85)",
+          backdropFilter: "blur(10px)",
+          borderBottom: hairline,
+        }}
       >
-        <Link to="/" className="flex items-center gap-2">
-          <div className="h-1.5 w-1.5 rounded-full bg-[#5E5CE6]" />
-          <span className="text-[15px] font-semibold" style={{ color: "#1A1A1A" }}>Recruix</span>
-        </Link>
-        <div className="hidden md:flex items-center gap-8">
-          {NAV_LINKS.map(({ label, href }) => (
-            <a key={label} href={href} className="text-sm text-[#8A8A85] hover:text-[#1A1A1A] transition">
-              {label}
-            </a>
-          ))}
-          <Link to="/roadmap" className="text-sm text-[#8A8A85] hover:text-[#1A1A1A] transition">
-            Roadmap
-          </Link>
-        </div>
-        <div className="flex items-center gap-3">
+        <span
+          className="recrux-heading"
+          style={{ fontSize: 17, fontWeight: 600, color: R.primary, textTransform: "lowercase" }}
+        >
+          rec<span style={{ fontStyle: "italic" }}>r</span>ux
+        </span>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <Link
             to="/signin"
-            className="h-[34px] rounded-[6px] border border-[#E8E8E6] bg-white px-[14px] text-[13px] font-medium text-[#3D3D3A] transition hover:bg-[#F7F7F5] hover:border-[#C8C8C4] flex items-center"
+            style={{
+              fontSize: 13,
+              fontWeight: 500,
+              color: R.primary,
+              textDecoration: "none",
+              padding: "8px 12px",
+            }}
           >
             Sign in
           </Link>
           <Link
             to="/signup"
-            className="h-[34px] rounded-[6px] bg-[#5E5CE6] px-[14px] text-[13px] font-medium text-white flex items-center transition hover:bg-[#4A48CC]"
+            style={{
+              fontSize: 13,
+              fontWeight: 600,
+              color: "#fff",
+              background: R.primary,
+              padding: "8px 16px",
+              borderRadius: 999,
+              textDecoration: "none",
+              boxShadow: "0 2px 8px rgba(24, 95, 165, 0.25)",
+            }}
           >
             Get started
           </Link>
         </div>
-      </nav>
+      </header>
 
-      {/* Hero */}
-      <section
-        className="px-4 py-16 md:py-24"
-        style={{ background: "linear-gradient(180deg, #DDE8FF 0%, #EEF2FF 100%)" }}
-      >
-        <div className="mx-auto max-w-[700px] text-center">
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3 }}
-            className="mb-6 inline-flex items-center rounded px-3 py-1.5 text-xs font-medium"
-            style={{ background: "#EEEEFD", color: "#5E5CE6", borderRadius: 4 }}
-          >
-            ✦ AI-powered job matching
-          </motion.div>
-          <motion.h1
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: 0.08 }}
-            className="mb-4 font-bold leading-tight"
-            style={{ fontSize: 48, color: "#1A1A1A", lineHeight: 1.15, letterSpacing: "-1.2px" }}
-          >
-            Land your dream job with{" "}
-            <span style={{ color: "#5E5CE6" }}>AI precision</span>
-          </motion.h1>
-          <motion.p
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: 0.16 }}
-            className="mx-auto mb-8 max-w-[560px] text-[18px] font-normal"
-            style={{ color: "#8A8A85" }}
-          >
-            Recruix matches you to the right roles based on your skills, experience, and goals — automatically.
-          </motion.p>
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: 0.24 }}
-            className="mb-10 flex flex-col items-center justify-center gap-3 sm:flex-row"
-          >
-            <Link
-              to="/signup"
-              className="flex h-[34px] w-full items-center justify-center rounded-[6px] bg-[#5E5CE6] px-[14px] text-[13px] font-medium text-white transition hover:bg-[#4A48CC] sm:w-auto"
+      <main style={{ position: "relative", zIndex: 1 }}>
+        {/* Hero */}
+        <section
+          style={{
+            maxWidth: 1040,
+            margin: "0 auto",
+            padding: "clamp(40px, 8vw, 72px) 20px 48px",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: 36,
+          }}
+        >
+          <div className="landing-hero-copy">
+            <p
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                fontSize: 12,
+                fontWeight: 600,
+                color: R.primary,
+                letterSpacing: "0.04em",
+                textTransform: "uppercase",
+                margin: 0,
+              }}
             >
-              Get started →
-            </Link>
-            <a
-              href="#how-it-works"
-              className="flex h-[34px] w-full items-center justify-center rounded-[6px] border border-[#E8E8E6] bg-white px-[14px] text-[13px] font-medium text-[#3D3D3A] transition hover:bg-[#F7F7F5] hover:border-[#C8C8C4] sm:w-auto"
-            >
-              See how it works
-            </a>
-          </motion.div>
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: 0.32 }}
-            className="flex items-center justify-center gap-2"
-          >
-            <div className="flex -space-x-2">
-              {["#14B8A6", "#3B82F6", "#8B5CF6", "#EC4899"].map((bg) => (
-                <div key={bg} className="h-8 w-8 rounded-full border-2 border-[#F7F7F5]" style={{ background: bg }} />
-              ))}
-            </div>
-            <p className="text-sm text-[#8A8A85]">
-              Joined by 12,400+ students and new grads
+              <Zap size={14} strokeWidth={2.5} aria-hidden />
+              Smarter job search
             </p>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* Stats bar */}
-      <section
-        className="grid grid-cols-2 md:grid-cols-4 border-t border-b"
-        style={{ background: "#FFFFFF", borderColor: "#E8E8E6" }}
-      >
-        {STATS.map((stat) => (
-          <div
-            key={stat.label}
-            className="landing-stat-cell flex flex-col items-center justify-center py-8 px-4 text-center"
-            style={{ borderColor: "#E8E8E6" }}
-          >
-            <span className="mb-1 text-2xl font-semibold md:text-3xl" style={{ color: "#1A1A1A" }}>{stat.value}</span>
-            <span className="text-sm text-[#8A8A85]">{stat.label}</span>
-          </div>
-        ))}
-      </section>
-
-      {/* Job cards preview – real jobs from backend */}
-      <section className="border-b px-4 py-12" style={{ background: "#EEF2FF", borderColor: "#E8E8E6" }}>
-        <div className="mx-auto max-w-4xl">
-          <p className="mb-6 text-xs font-semibold uppercase tracking-wider" style={{ color: "#8A8A85" }}>
-            Live job matches from LinkedIn, Indeed, Glassdoor & ZipRecruiter
-          </p>
-          {loading ? (
-            <div className="grid gap-4 md:grid-cols-3">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="h-40 animate-pulse rounded-card border border-[#E8E8E6] bg-white" />
-              ))}
-            </div>
-          ) : previewJobs.length > 0 ? (
-            <div className="grid gap-4 md:grid-cols-3">
-              {previewJobs.map((job, i) => (
-                <motion.div
-                  key={job.id}
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.08 * i }}
-                  className="rounded-card border border-[#E8E8E6] bg-white p-4"
-                >
-                  <div className="mb-2 flex items-start justify-between gap-2">
-                    <div className="min-w-0 flex-1" />
-                    <SourceBadge source={job.source} />
-                  </div>
-                  <div className="mb-3 flex items-center gap-3">
-                    <div
-                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#5E5CE6] text-xs font-semibold text-white"
-                    >
-                      {job.company.slice(0, 2).toUpperCase()}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-[14px] font-medium" style={{ color: "#1A1A1A" }}>{job.title}</p>
-                      <p className="text-[12px]" style={{ color: "#8A8A85" }}>{job.company} · {job.location}</p>
-                    </div>
-                  </div>
-                  <div className="mb-3 inline-block rounded px-2.5 py-1 text-xs font-medium" style={{ background: "#EEEEFD", color: "#5E5CE6", borderRadius: 4 }}>
-                    {job.match}% match
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {job.tags.slice(0, 2).map((tag) => (
-                      <span key={tag} className="rounded px-2 py-0.5 text-[12px]" style={{ background: "#F4F4F2", border: "1px solid #E8E8E6", color: "#3D3D3A", borderRadius: 4 }}>{tag}</span>
-                    ))}
-                    <span className="rounded px-2 py-0.5 text-[12px]" style={{ background: "#F4F4F2", border: "1px solid #E8E8E6", color: "#8A8A85", borderRadius: 4 }}>{job.workplace}</span>
-                  </div>
-                  {job.applyUrl ? (
-                    <a
-                      href={job.applyUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="mt-3 flex h-[34px] w-full items-center justify-center gap-1.5 rounded-[6px] bg-[#5E5CE6] text-[13px] font-medium text-white transition hover:bg-[#4A48CC]"
-                      title={`Opens on ${job.source || "job board"} website`}
-                    >
-                      Apply
-                      <ExternalLink size={12} />
-                    </a>
-                  ) : (
-                    <Link
-                      to="/signup"
-                      className="mt-3 flex h-[34px] w-full items-center justify-center gap-1.5 rounded-[6px] bg-[#5E5CE6] text-[13px] font-medium text-white transition hover:bg-[#4A48CC]"
-                    >
-                      Sign up to apply
-                    </Link>
-                  )}
-                </motion.div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-sm text-[#8A8A85]">Sign up to see live jobs and get matched. <Link to="/signup" className="text-[#5E5CE6] underline hover:text-[#4A48CC]">Get started</Link></p>
-          )}
-        </div>
-      </section>
-
-      {/* Features */}
-      <section id="features" className="px-4 py-16" style={{ background: "#EEF2FF" }}>
-        <div className="mx-auto max-w-4xl">
-          <div className="grid gap-6 md:grid-cols-3">
-            {FEATURES.map((f, i) => (
-              <motion.div
-                key={f.title}
-                initial={{ opacity: 0, y: 8 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: 0.08 * i }}
-                className="rounded-card border border-[#E8E8E6] bg-white p-5"
+            <h1
+              className="recrux-heading landing-hero-title"
+              style={{
+                fontSize: "clamp(32px, 6vw, 44px)",
+                fontWeight: 700,
+                color: R.darkest,
+                marginTop: 14,
+                marginBottom: 0,
+                lineHeight: 1.12,
+                letterSpacing: "-0.03em",
+              }}
+            >
+              Land roles that fit{" "}
+              <span style={{ color: R.primary, textDecoration: "underline", textDecorationThickness: 2, textUnderlineOffset: 4 }}>
+                your
+              </span>{" "}
+              resume
+            </h1>
+            <p
+              className="landing-hero-subtitle"
+              style={{
+                fontSize: 17,
+                color: R.deep,
+                marginTop: 18,
+                marginBottom: 0,
+                lineHeight: 1.55,
+              }}
+            >
+              Browse live listings, see match scores against your profile, and tune your resume — without juggling ten
+              browser tabs.
+            </p>
+            <div className="landing-hero-cta" style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 28 }}>
+              <Link
+                to="/signup"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 8,
+                  fontSize: 14,
+                  fontWeight: 600,
+                  color: "#fff",
+                  background: R.primary,
+                  padding: "14px 26px",
+                  borderRadius: 999,
+                  textDecoration: "none",
+                  boxShadow: "0 4px 14px rgba(24, 95, 165, 0.35)",
+                }}
               >
-                <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-lg text-lg" style={{ background: "#EEEEFD", color: "#5E5CE6" }}>
-                  {f.icon}
-                </div>
-                <h3 className="font-semibold" style={{ color: "#1A1A1A" }}>{f.title}</h3>
-                <p className="mt-1 text-sm" style={{ color: "#3D3D3A" }}>{f.description}</p>
-              </motion.div>
-            ))}
+                Get started free
+                <ArrowRight size={18} strokeWidth={2.2} aria-hidden />
+              </Link>
+              <Link
+                to="/signin"
+                style={{
+                  fontSize: 14,
+                  fontWeight: 600,
+                  color: R.primary,
+                  background: R.card,
+                  padding: "14px 26px",
+                  borderRadius: 999,
+                  textDecoration: "none",
+                  border: hairline,
+                  boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+                }}
+              >
+                I have an account
+              </Link>
+            </div>
+            <ul className="landing-hero-bullets" style={{ listStyle: "none", padding: 0, margin: "32px 0 0", display: "flex", flexWrap: "wrap", gap: "12px 24px", fontSize: 13, color: R.body, fontWeight: 500 }}>
+              {["Live job data", "Saved & applied tracking", "Resume optimizer"].map((t) => (
+                <li key={t} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span
+                    style={{
+                      width: 6,
+                      height: 6,
+                      borderRadius: "50%",
+                      background: R.mid,
+                      flexShrink: 0,
+                    }}
+                  />
+                  {t}
+                </li>
+              ))}
+            </ul>
           </div>
-        </div>
-      </section>
 
-      {/* CTA */}
-      <section className="px-4 py-16" style={{ background: "#EEF2FF" }}>
-        <div className="mx-auto max-w-2xl rounded-card border border-[#E8E8E6] bg-white p-8 text-center">
-          <h2 className="text-2xl font-bold" style={{ color: "#1A1A1A" }}>Ready to find your next role?</h2>
-          <p className="mt-2" style={{ color: "#8A8A85" }}>
-            Join thousands of students and grads already using Recruix.
-          </p>
+          {/* Preview cards — one row, side by side */}
+          <div style={{ width: "100%" }}>
+            <div className="landing-hero-cards-row">
+              {PREVIEW_MATCH_CARDS.map((card) => (
+                <LandingPreviewMatchCard key={card.title} {...card} />
+              ))}
+            </div>
+            <p style={{ fontSize: 11, color: R.body, textAlign: "center", margin: "12px 0 0", opacity: 0.9 }}>
+              Example match cards — not live listings
+            </p>
+          </div>
+        </section>
+
+        {/* Features */}
+        <section
+          style={{
+            background: "rgba(255, 255, 255, 0.45)",
+            borderTop: hairline,
+            borderBottom: hairline,
+            padding: "56px 20px",
+          }}
+        >
+          <div style={{ maxWidth: 1040, margin: "0 auto" }}>
+            <h2
+              className="recrux-heading"
+              style={{
+                fontSize: 13,
+                fontWeight: 700,
+                letterSpacing: "0.06em",
+                textTransform: "uppercase",
+                color: R.deep,
+                textAlign: "center",
+                margin: "0 0 8px",
+              }}
+            >
+              What you get
+            </h2>
+            <p
+              style={{
+                fontSize: 20,
+                fontWeight: 600,
+                color: R.darkest,
+                textAlign: "center",
+                margin: "0 0 36px",
+                fontFamily: "var(--font-heading)",
+              }}
+            >
+              Everything in one calm workspace
+            </p>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+                gap: 16,
+              }}
+            >
+              {[
+                {
+                  icon: <Search size={22} strokeWidth={2} />,
+                  title: "Search & filter",
+                  body: "Query real roles and narrow by location, remote, and salary so you spend time on fits.",
+                },
+                {
+                  icon: <BarChart3 size={22} strokeWidth={2} />,
+                  title: "Match scores",
+                  body: "See how each posting lines up with your resume and where to tighten your story.",
+                },
+                {
+                  icon: <Bookmark size={22} strokeWidth={2} />,
+                  title: "Saved & applied",
+                  body: "Keep a shortlist and log applications so you always know what’s in flight.",
+                },
+                {
+                  icon: <FileText size={22} strokeWidth={2} />,
+                  title: "Resume tools",
+                  body: "Upload, parse, and experiment with rewrites tailored to the jobs you want.",
+                },
+                {
+                  icon: <Layers size={22} strokeWidth={2} />,
+                  title: "Dashboard",
+                  body: "High-match picks, streaks, and stats at a glance when you open the app.",
+                },
+                {
+                  icon: <TrendingUp size={22} strokeWidth={2} />,
+                  title: "Progress",
+                  body: "Track momentum over time with simple charts — nudges to stay consistent.",
+                },
+              ].map((f) => (
+                <div
+                  key={f.title}
+                  style={{
+                    background: R.card,
+                    border: hairline,
+                    borderRadius: 14,
+                    padding: 22,
+                    boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: 12,
+                      background: R.light,
+                      color: R.primary,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      marginBottom: 14,
+                    }}
+                  >
+                    {f.icon}
+                  </div>
+                  <h3 className="recrux-heading" style={{ fontSize: 16, fontWeight: 700, color: R.darkest, margin: "0 0 8px" }}>
+                    {f.title}
+                  </h3>
+                  <p style={{ fontSize: 14, color: R.body, margin: 0, lineHeight: 1.5 }}>{f.body}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* Steps + CTA */}
+        <section style={{ padding: "56px 20px 64px", maxWidth: 720, margin: "0 auto", textAlign: "center" }}>
+          <h2 className="recrux-heading" style={{ fontSize: 24, fontWeight: 700, color: R.darkest, margin: "0 0 28px" }}>
+            Start in three steps
+          </h2>
+          <ol
+            style={{
+              listStyle: "none",
+              padding: 0,
+              margin: "0 0 36px",
+              textAlign: "left",
+              counterReset: "step",
+            }}
+          >
+            {[
+              "Create your free account and set your target field.",
+              "Upload a resume or paste skills so matches mean something.",
+              "Browse jobs, save favorites, and apply with your stats in view.",
+            ].map((step, i) => (
+              <li
+                key={i}
+                style={{
+                  display: "flex",
+                  gap: 16,
+                  alignItems: "flex-start",
+                  marginBottom: i < 2 ? 20 : 0,
+                  counterIncrement: "step",
+                }}
+              >
+                <span
+                  className="recrux-heading"
+                  style={{
+                    flexShrink: 0,
+                    width: 36,
+                    height: 36,
+                    borderRadius: 10,
+                    background: R.primary,
+                    color: "#fff",
+                    fontSize: 15,
+                    fontWeight: 700,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  {i + 1}
+                </span>
+                <p style={{ fontSize: 16, color: R.deep, margin: "6px 0 0", lineHeight: 1.5 }}>{step}</p>
+              </li>
+            ))}
+          </ol>
           <Link
             to="/signup"
-            className="mt-6 inline-flex h-[34px] items-center rounded-[6px] bg-[#5E5CE6] px-6 text-[13px] font-medium text-white transition hover:bg-[#4A48CC]"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 8,
+              fontSize: 15,
+              fontWeight: 600,
+              color: "#fff",
+              background: R.primary,
+              padding: "16px 32px",
+              borderRadius: 999,
+              textDecoration: "none",
+              boxShadow: "0 4px 16px rgba(24, 95, 165, 0.3)",
+            }}
           >
-            Create your account →
+            Create your account
+            <ArrowRight size={18} strokeWidth={2.2} />
           </Link>
-        </div>
-      </section>
+        </section>
 
-      {/* Footer */}
-      <footer
-        className="border-t px-6 py-8 md:px-12"
-        style={{ background: "#EEF2FF", borderColor: "#E8E8E6" }}
-      >
-        <div className="flex flex-col items-center justify-between gap-4 md:flex-row">
-          <div className="flex items-center gap-2">
-            <div className="h-1.5 w-1.5 rounded-full bg-[#5E5CE6]" />
-            <span className="font-medium" style={{ color: "#1A1A1A" }}>Recruix</span>
+        <footer
+          style={{
+            borderTop: hairline,
+            padding: "24px 20px 32px",
+            background: "rgba(255,255,255,0.5)",
+          }}
+        >
+          <div
+            style={{
+              maxWidth: 1040,
+              margin: "0 auto",
+              display: "flex",
+              flexWrap: "wrap",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 16,
+            }}
+          >
+            <span className="recrux-heading" style={{ fontSize: 15, fontWeight: 600, color: R.primary }}>
+              rec<span style={{ fontStyle: "italic" }}>r</span>ux
+            </span>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 20, fontSize: 13 }}>
+              <Link to="/signin" style={{ color: R.body, textDecoration: "none", fontWeight: 500 }}>
+                Sign in
+              </Link>
+              <Link to="/signup" style={{ color: R.body, textDecoration: "none", fontWeight: 500 }}>
+                Sign up
+              </Link>
+            </div>
+            <p style={{ fontSize: 12, color: R.body, margin: 0, width: "100%", textAlign: "center" }}>
+              © {new Date().getFullYear()} Recrux. Built for focused job seekers.
+            </p>
           </div>
-          <div className="flex gap-6 text-sm text-[#8A8A85]">
-            <Link to="/roadmap" className="hover:text-[#1A1A1A]">Roadmap</Link>
-            <a href="#privacy" className="hover:text-[#1A1A1A]">Privacy</a>
-            <a href="#terms" className="hover:text-[#1A1A1A]">Terms</a>
-            <a href="#contact" className="hover:text-[#1A1A1A]">Contact</a>
-          </div>
-        </div>
-      </footer>
+        </footer>
+      </main>
+
+      <style>{`
+        .landing-hero-copy {
+          text-align: center;
+          width: 100%;
+        }
+        .landing-hero-title {
+          max-width: 640px;
+          margin-left: auto;
+          margin-right: auto;
+        }
+        .landing-hero-subtitle {
+          max-width: 520px;
+          margin-left: auto;
+          margin-right: auto;
+        }
+        .landing-hero-cta,
+        .landing-hero-bullets {
+          justify-content: center;
+        }
+        .landing-hero-cards-row {
+          display: flex;
+          flex-direction: row;
+          flex-wrap: nowrap;
+          gap: 12px;
+          justify-content: center;
+          align-items: stretch;
+          width: 100%;
+          overflow-x: auto;
+          padding-bottom: 4px;
+          -webkit-overflow-scrolling: touch;
+          scrollbar-width: thin;
+        }
+        .landing-hero-cards-row > * {
+          flex: 0 0 min(280px, 82vw);
+          min-width: 0;
+        }
+        @media (min-width: 960px) {
+          .landing-hero-cards-row {
+            flex-wrap: wrap;
+            overflow-x: visible;
+            justify-content: center;
+          }
+          .landing-hero-cards-row > * {
+            flex: 1 1 0;
+            max-width: 340px;
+            min-width: 200px;
+          }
+        }
+      `}</style>
     </div>
   );
 }

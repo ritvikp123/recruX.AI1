@@ -1,4 +1,4 @@
-import { ReactNode } from "react";
+import type { ReactNode } from "react";
 import { motion } from "framer-motion";
 
 interface Props {
@@ -14,10 +14,9 @@ export function SocialButton({ icon, label, onClick }: Props) {
       whileHover={{ y: -1 }}
       whileTap={{ scale: 0.98 }}
       onClick={onClick}
-      className="flex w-full items-center justify-center gap-2 rounded-button border-2 bg-bg-card px-4 py-2.5 text-sm font-medium transition hover:bg-bg-page"
-      style={{ borderColor: "var(--border)", color: "var(--text-primary)" }}
+      className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-js-brand-border bg-js-brand-card px-4 py-2.5 text-sm font-medium text-js-brand-darkest transition hover:bg-js-brand-bg"
     >
-      <span className="h-4 w-4" style={{ color: "var(--secondary)" }}>{icon}</span>
+      <span className="h-4 w-4 text-js-brand-primary">{icon}</span>
       <span>{label}</span>
     </motion.button>
   );

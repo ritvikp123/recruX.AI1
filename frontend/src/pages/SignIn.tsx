@@ -48,9 +48,6 @@ export function SignIn() {
       provider: "google",
       options: {
         redirectTo: `${window.location.origin}/auth/callback`,
-        queryParams: {
-          prompt: "select_account",
-        },
       },
     });
     if (oauthError) {
@@ -59,20 +56,40 @@ export function SignIn() {
     }
   };
 
+  const handleLinkedInSignIn = async () => {
+    setError("");
+    const { error: oauthError } = await supabase.auth.signInWithOAuth({
+      // Supabase uses LinkedIn OIDC provider key.
+      provider: "linkedin_oidc",
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+      },
+    });
+    if (oauthError) {
+      setError(oauthError.message || "LinkedIn sign-in failed. Try again or use email.");
+      setShakeKey((k) => k + 1);
+    }
+  };
+
   return (
-    <AuthLayout title="Sign in to Recruix.ai" subtitle="Use Google (no password needed), or sign in with the email and password you used when you created your account.">
+    <AuthLayout title="Sign in to Recrux" subtitle="Use Google or LinkedIn, or sign in with email and password.">
       <div className="space-y-3">
         <div className="space-y-2">
           <SocialButton
-            icon={<span className="flex h-4 w-4 items-center justify-center rounded text-[10px] font-medium text-text-primary bg-bg-badge">G</span>}
+            icon={<span className="flex h-4 w-4 items-center justify-center rounded text-[10px] font-medium text-js-brand-darkest bg-js-brand-light">G</span>}
             label="Continue with Google"
             onClick={handleGoogleSignIn}
           />
+          <SocialButton
+            icon={<span className="flex h-4 w-4 items-center justify-center rounded text-[10px] font-bold text-white bg-[#0A66C2]">in</span>}
+            label="Continue with LinkedIn"
+            onClick={handleLinkedInSignIn}
+          />
         </div>
-        <div className="flex items-center gap-2 text-xs text-text-muted">
-          <span className="h-px flex-1 bg-border" />
+        <div className="flex items-center gap-2 text-xs text-js-brand-muted">
+          <span className="h-px flex-1 bg-js-brand-border" />
           <span>or continue with email</span>
-          <span className="h-px flex-1 bg-border" />
+          <span className="h-px flex-1 bg-js-brand-border" />
         </div>
 
         <AnimatePresence mode="popLayout">
@@ -86,38 +103,32 @@ export function SignIn() {
             className="space-y-3 text-sm"
           >
             <label className="block space-y-1">
-              <span className="text-xs text-text-secondary">Email</span>
-              <div
-                className="flex items-center gap-2 rounded-button border-2 bg-bg-card px-3 py-2.5 focus-within:ring-2 focus-within:ring-primary"
-                style={{ borderColor: "var(--border)" }}
-              >
-                <Mail size={16} style={{ color: "var(--secondary)" }} />
+              <span className="text-xs text-js-brand-deep">Email</span>
+              <div className="flex items-center gap-2 rounded-lg border-2 border-js-brand-border bg-js-brand-card px-3 py-2.5 focus-within:ring-2 focus-within:ring-js-brand-primary">
+                <Mail size={16} className="text-js-brand-primary" />
                 <input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="you@example.com"
-                  className="flex-1 bg-transparent text-sm text-text-primary placeholder:text-text-muted focus:outline-none"
+                  className="flex-1 bg-transparent text-sm text-js-brand-darkest placeholder:text-js-brand-muted focus:outline-none"
                 />
               </div>
             </label>
             <label className="block space-y-1">
-              <span className="text-xs text-text-secondary">Password</span>
-              <div
-                className="flex items-center gap-2 rounded-button border-2 bg-bg-card px-3 py-2.5 focus-within:ring-2 focus-within:ring-primary"
-                style={{ borderColor: "var(--border)" }}
-              >
-                <Lock size={16} style={{ color: "var(--secondary)" }} />
+              <span className="text-xs text-js-brand-deep">Password</span>
+              <div className="flex items-center gap-2 rounded-lg border-2 border-js-brand-border bg-js-brand-card px-3 py-2.5 focus-within:ring-2 focus-within:ring-js-brand-primary">
+                <Lock size={16} className="text-js-brand-primary" />
                 <input
                   type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="flex-1 bg-transparent text-sm text-text-primary placeholder:text-text-muted focus:outline-none"
+                  className="flex-1 bg-transparent text-sm text-js-brand-darkest placeholder:text-js-brand-muted focus:outline-none"
                 />
                 <button
                   type="button"
-                  className="text-text-muted hover:text-text-secondary"
+                  className="text-js-brand-muted hover:text-js-brand-deep"
                   onClick={() => setShowPassword((v) => !v)}
                 >
                   {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
@@ -128,8 +139,7 @@ export function SignIn() {
               <span />
               <button
                 type="button"
-                className="font-medium hover:underline"
-                style={{ color: "var(--accent)" }}
+                className="font-medium text-js-brand-primary hover:underline"
                 onClick={async () => {
                   if (!email) {
                     setError("Enter your email above to reset your password.");
@@ -154,17 +164,16 @@ export function SignIn() {
             <button
               type="submit"
               disabled={submitting}
-              className="w-full rounded-button py-2.5 text-sm font-bold text-white transition hover:opacity-90 disabled:opacity-70"
-              style={{ background: "var(--accent)" }}
+              className="w-full rounded-lg bg-js-brand-primary py-2.5 text-sm font-bold text-white transition hover:opacity-90 disabled:opacity-70"
             >
               {submitting ? "Signing in…" : "Sign in"}
             </button>
           </motion.form>
         </AnimatePresence>
 
-        <p className="mt-2 text-xs text-text-secondary">
+        <p className="mt-2 text-xs text-js-brand-deep">
           Don&apos;t have an account?{" "}
-          <Link to="/signup" className="font-medium hover:underline" style={{ color: "var(--primary)" }}>
+          <Link to="/signup" className="font-medium text-js-brand-primary hover:underline">
             Sign up →
           </Link>
         </p>

@@ -108,9 +108,6 @@ export function SignUp() {
       provider: "google",
       options: {
         redirectTo: `${window.location.origin}/auth/callback`,
-        queryParams: {
-          prompt: "select_account",
-        },
       },
     });
     if (oauthError) {
@@ -119,25 +116,44 @@ export function SignUp() {
     }
   };
 
+  const handleGitHubSignIn = async () => {
+    setError("");
+    const { error: oauthError } = await supabase.auth.signInWithOAuth({
+      provider: "github",
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+      },
+    });
+    if (oauthError) {
+      setError(oauthError.message || "GitHub sign-in failed. Try again or use email.");
+      setShakeKey((k) => k + 1);
+    }
+  };
+
   return (
-    <AuthLayout title="Create your account" subtitle="Join Recruix to get AI-matched to your next role. Or use Google to skip the form.">
+    <AuthLayout title="Create your account" subtitle="Join Recrux for live jobs, match scores, and AI tools. Or use Google to skip the form.">
       <div className="space-y-3">
         {error && (
-          <div className="rounded-button border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+          <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
             {error}
           </div>
         )}
         <div className="space-y-2">
           <SocialButton
-            icon={<span className="flex h-4 w-4 items-center justify-center rounded text-[10px] font-medium text-text-primary bg-bg-badge">G</span>}
+            icon={<span className="flex h-4 w-4 items-center justify-center rounded text-[10px] font-medium text-js-brand-darkest bg-js-brand-light">G</span>}
             label="Continue with Google"
             onClick={handleGoogleSignIn}
           />
+          <SocialButton
+            icon={<span className="flex h-4 w-4 items-center justify-center rounded text-[10px] font-medium text-white bg-slate-800">GH</span>}
+            label="Continue with GitHub"
+            onClick={handleGitHubSignIn}
+          />
         </div>
-        <div className="flex items-center gap-2 text-xs text-text-muted">
-          <span className="h-px flex-1 bg-border" />
+        <div className="flex items-center gap-2 text-xs text-js-brand-muted">
+          <span className="h-px flex-1 bg-js-brand-border" />
           <span>or continue with email</span>
-          <span className="h-px flex-1 bg-border" />
+          <span className="h-px flex-1 bg-js-brand-border" />
         </div>
 
         <AnimatePresence mode="popLayout">
@@ -151,58 +167,51 @@ export function SignUp() {
             className="space-y-3 text-sm"
           >
             <label className="block space-y-1">
-              <span className="text-xs text-text-secondary">Full Name</span>
+              <span className="text-xs text-js-brand-deep">Full Name</span>
               <div
-                className="flex items-center gap-2 rounded-button border-2 bg-bg-card px-3 py-2.5 focus-within:ring-2 focus-within:ring-primary"
-                style={{ borderColor: "var(--border)" }}
+                className="flex items-center gap-2 rounded-lg border-2 border-js-brand-border bg-js-brand-card px-3 py-2.5 focus-within:ring-2 focus-within:ring-js-brand-primary"
               >
-                <UserIcon size={16} style={{ color: "var(--secondary)" }} />
+                <UserIcon size={16} className="text-js-brand-primary" />
                 <input
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Annika Doe"
-                  className="flex-1 bg-transparent text-sm text-text-primary placeholder:text-text-muted focus:outline-none"
+                  className="flex-1 bg-transparent text-sm text-js-brand-darkest placeholder:text-js-brand-muted focus:outline-none"
                 />
               </div>
             </label>
             <label className="block space-y-1">
-              <span className="text-xs text-text-secondary">Email</span>
-              <div
-                className="flex items-center gap-2 rounded-button border-2 bg-bg-card px-3 py-2.5 focus-within:ring-2 focus-within:ring-primary"
-                style={{ borderColor: "var(--border)" }}
-              >
-                <Mail size={16} style={{ color: "var(--secondary)" }} />
+              <span className="text-xs text-js-brand-deep">Email</span>
+              <div className="flex items-center gap-2 rounded-lg border-2 border-js-brand-border bg-js-brand-card px-3 py-2.5 focus-within:ring-2 focus-within:ring-js-brand-primary">
+                <Mail size={16} className="text-js-brand-primary" />
                 <input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="you@example.com"
-                  className="flex-1 bg-transparent text-sm text-text-primary placeholder:text-text-muted focus:outline-none"
+                  className="flex-1 bg-transparent text-sm text-js-brand-darkest placeholder:text-js-brand-muted focus:outline-none"
                 />
               </div>
             </label>
             <label className="block space-y-1">
-              <span className="text-xs text-text-secondary">Password</span>
-              <div
-                className="rounded-button border-2 bg-bg-card px-3 py-2.5 focus-within:ring-2 focus-within:ring-primary"
-                style={{ borderColor: "var(--border)" }}
-              >
+              <span className="text-xs text-js-brand-deep">Password</span>
+              <div className="rounded-lg border-2 border-js-brand-border bg-js-brand-card px-3 py-2.5 focus-within:ring-2 focus-within:ring-js-brand-primary">
                 <div className="flex items-center gap-2">
-                  <Lock size={16} style={{ color: "var(--secondary)" }} />
+                  <Lock size={16} className="text-js-brand-primary" />
                   <input
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
-                    className="flex-1 bg-transparent text-sm text-text-primary placeholder:text-text-muted focus:outline-none"
+                    className="flex-1 bg-transparent text-sm text-js-brand-darkest placeholder:text-js-brand-muted focus:outline-none"
                   />
                 </div>
-                <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-border-light">
+                <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-js-brand-muted">
                   <div
                     className={`h-1.5 rounded-full transition-all ${
                       passwordStrength === "strong"
-                        ? "w-full bg-accent"
+                        ? "w-full bg-js-brand-primary"
                         : passwordStrength === "medium"
                         ? "w-2/3 bg-amber-500"
                         : "w-1/3 bg-red-500"
@@ -212,28 +221,24 @@ export function SignUp() {
               </div>
             </label>
             <label className="block space-y-1">
-              <span className="text-xs text-text-secondary">Confirm Password</span>
-              <div
-                className="flex items-center gap-2 rounded-button border-2 bg-bg-card px-3 py-2.5 focus-within:ring-2 focus-within:ring-primary"
-                style={{ borderColor: "var(--border)" }}
-              >
-                <Lock size={16} style={{ color: "var(--secondary)" }} />
+              <span className="text-xs text-js-brand-deep">Confirm Password</span>
+              <div className="flex items-center gap-2 rounded-lg border-2 border-js-brand-border bg-js-brand-card px-3 py-2.5 focus-within:ring-2 focus-within:ring-js-brand-primary">
+                <Lock size={16} className="text-js-brand-primary" />
                 <input
                   type="password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="flex-1 bg-transparent text-sm text-text-primary placeholder:text-text-muted focus:outline-none"
+                  className="flex-1 bg-transparent text-sm text-js-brand-darkest placeholder:text-js-brand-muted focus:outline-none"
                 />
               </div>
             </label>
             <label className="block space-y-1">
-              <span className="text-xs text-text-secondary">What best describes you?</span>
+              <span className="text-xs text-js-brand-deep">What best describes you?</span>
               <select
                 value={experience}
                 onChange={(e) => setExperience(e.target.value)}
-                className="w-full rounded-button border-2 bg-bg-card px-3 py-2.5 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-primary"
-                style={{ borderColor: "var(--border)" }}
+                className="w-full rounded-lg border-2 border-js-brand-border bg-js-brand-card px-3 py-2.5 text-sm text-js-brand-darkest focus:outline-none focus:ring-2 focus:ring-js-brand-primary"
               >
                 {EXPERIENCE_OPTIONS.map((opt) => (
                   <option key={opt}>{opt}</option>
@@ -241,52 +246,49 @@ export function SignUp() {
               </select>
             </label>
             <label className="block space-y-1">
-              <span className="text-xs text-text-secondary">What field are you targeting?</span>
+              <span className="text-xs text-js-brand-deep">What field are you targeting?</span>
               <select
                 value={field}
                 onChange={(e) => setField(e.target.value)}
-                className="w-full rounded-button border-2 bg-bg-card px-3 py-2.5 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-primary"
-                style={{ borderColor: "var(--border)" }}
+                className="w-full rounded-lg border-2 border-js-brand-border bg-js-brand-card px-3 py-2.5 text-sm text-js-brand-darkest focus:outline-none focus:ring-2 focus:ring-js-brand-primary"
               >
                 {FIELD_OPTIONS.map((opt) => (
                   <option key={opt}>{opt}</option>
                 ))}
               </select>
             </label>
-            <label className="mt-2 flex items-start gap-2 text-xs text-text-secondary">
+            <label className="mt-2 flex items-start gap-2 text-xs text-js-brand-deep">
               <input
                 type="checkbox"
                 checked={accepted}
                 onChange={(e) => setAccepted(e.target.checked)}
-                className="mt-0.5 h-4 w-4 shrink-0 rounded border-2 border-border text-accent focus:ring-primary"
-                style={{ borderColor: "var(--border)" }}
+                className="mt-0.5 h-4 w-4 shrink-0 rounded border-2 border-js-brand-border text-js-brand-primary focus:ring-js-brand-primary"
               />
               <span>
                 I agree to the{" "}
-                <button type="button" className="underline" style={{ color: "var(--primary)" }}>
+                <button type="button" className="text-js-brand-primary underline">
                   Terms of Service
                 </button>{" "}
                 and{" "}
-                <button type="button" className="underline" style={{ color: "var(--primary)" }}>
+                <button type="button" className="text-js-brand-primary underline">
                   Privacy Policy
                 </button>
-                . <span className="font-medium text-text-primary">(Required)</span>
+                . <span className="font-medium text-js-brand-darkest">(Required)</span>
               </span>
             </label>
             <button
               type="submit"
               disabled={submitting}
-              className="mt-1 w-full rounded-button py-2.5 text-sm font-bold text-white transition hover:opacity-90 disabled:opacity-70"
-              style={{ background: "var(--accent)" }}
+              className="mt-1 w-full rounded-lg bg-js-brand-primary py-2.5 text-sm font-bold text-white transition hover:opacity-90 disabled:opacity-70"
             >
               {submitting ? "Creating account…" : "Create account"}
             </button>
           </motion.form>
         </AnimatePresence>
 
-        <p className="mt-2 text-xs text-text-secondary">
+        <p className="mt-2 text-xs text-js-brand-deep">
           Already have an account?{" "}
-          <Link to="/signin" className="font-medium hover:underline" style={{ color: "var(--primary)" }}>
+          <Link to="/signin" className="font-medium text-js-brand-primary hover:underline">
             Sign in →
           </Link>
         </p>

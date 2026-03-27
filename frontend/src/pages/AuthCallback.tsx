@@ -36,9 +36,9 @@ export function AuthCallback() {
   }, [navigate, setSessionFromAuth]);
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-bg-page text-text-primary">
-      <div className="h-8 w-8 animate-spin rounded-full border-2 border-accent border-t-transparent" />
-      <p className="mt-4 text-sm text-text-secondary">{message}</p>
+    <div className="flex min-h-screen flex-col items-center justify-center bg-js-brand-bg">
+      <div className="h-8 w-8 animate-spin rounded-full border-2 border-js-brand-primary border-t-transparent" />
+      <p className="mt-4 text-sm text-js-brand-deep">{message}</p>
     </div>
   );
 }

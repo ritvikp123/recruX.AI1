@@ -1,69 +1,202 @@
+/* Fonts loaded via index.html (PROMPT 2 — Variant 2) */
+
+/* Recrux tokens — Variant 2 ocean; referenced by Tailwind + theme.ts */
+:root {
+  --font-heading: "Plus Jakarta Sans", system-ui, sans-serif;
+  --font-body: "DM Sans", system-ui, sans-serif;
+
+  --primary: #185fa5;
+  --accent: #0c447c;
+  --bg-page: #a8ccee;
+  --bg-nav: #ffffff;
+  --bg-card: #ffffff;
+  --border: #85b7eb;
+  --text-primary: #042c53;
+  --text-body: #0c447c;
+  --text-deep: #0c447c;
+  --muted: #b5d4f4;
+  --light: #e6f1fb;
+  --mid: #378add;
+
+  /* Job match % (high = brand blue; gap = amber-brown per spec) */
+  --match-high: #185fa5;
+  --match-mid: #854f0b;
+  --match-high-bg: #dcfce7;
+  --match-high-text: #166534;
+  --match-mid-bg: #faeeda;
+  --match-mid-text: #633806;
+  --warn-bg: #fee2e2;
+  --warn-text: #991b1b;
+  --great-bg: #dcfce7;
+  --great-text: #166534;
+  --gap-bg: #faeeda;
+  --gap-text: #633806;
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Linear-inspired light theme */
-:root {
-  --primary: #5e5ce6;
-  --primary-hover: #4a48cc;
-  --accent: #5e5ce6;
-  --accent-hover: #4a48cc;
-  --accent-light: #eeeefd;
-  --success: #16a34a;
-  --success-light: #f0fdf4;
-  --warning: #d97706;
-  --warning-light: #fffbeb;
-  --danger: #dc2626;
-  --danger-light: #fef2f2;
-  --bg-page: #f7f7f5;
-  --bg-card: #ffffff;
-  --bg-input: #ffffff;
-  --bg-hero: #f7f7f5;
-  --text-primary: #1a1a1a;
-  --text-secondary: #3d3d3a;
-  --text-muted: #8a8a85;
-  --border: #e8e8e6;
-  --border-hover: #c8c8c4;
-  --border-focus: #5e5ce6;
-  --pill-bg: #f4f4f2;
-  --pill-border: #e8e8e6;
-  --bg-badge: #f4f4f2;
+.recrux-heading {
+  font-family: var(--font-heading);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
 }
 
 body {
-  @apply font-body;
+  margin: 0;
+  min-height: 100vh;
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  background: var(--bg-page);
+  color: var(--text-primary);
 }
 
-/* Landing stats bar: vertical dividers between columns, none after 2nd on mobile */
-.landing-stat-cell {
-  border-right: 1px solid var(--border);
+input,
+button {
+  font-family: var(--font-body);
 }
-.landing-stat-cell:nth-child(2) {
-  border-right: none;
+
+input:focus {
+  outline: none;
 }
-.landing-stat-cell:last-child {
-  border-right: none;
-}
-@media (min-width: 768px) {
-  .landing-stat-cell:nth-child(2) {
-    border-right: 1px solid var(--border);
+
+@media (max-width: 899px) {
+  .recrux-nav-search {
+    display: none !important;
   }
 }
 
-/* Design system: Linear-style */
-.rounded-button {
+::-webkit-scrollbar {
+  width: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--muted);
+  border-radius: 2px;
+}
+
+@keyframes recrux-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.recrux-spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--primary);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: recrux-spin 0.7s linear infinite;
+}
+
+.recrux-dashboard-grid {
+  display: grid;
+  grid-template-columns: 1fr 280px;
+  gap: 24px;
+  align-items: start;
+  min-height: calc(100vh - 56px);
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 24px;
+  box-sizing: border-box;
+}
+
+@media (max-width: 1024px) {
+  .recrux-dashboard-grid {
+    grid-template-columns: 1fr;
+    padding: 16px;
+  }
+}
+
+.recrux-jobs-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  min-height: calc(100vh - 56px);
+}
+
+@media (min-width: 901px) {
+  .recrux-jobs-grid.has-detail {
+    grid-template-columns: 1fr minmax(280px, 340px);
+  }
+}
+
+.recrux-resume-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 800px) {
+  .recrux-resume-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@keyframes recrux-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.recrux-skeleton {
+  background: linear-gradient(
+    110deg,
+    var(--muted) 0%,
+    var(--light) 45%,
+    var(--muted) 90%
+  );
+  background-size: 200% 100%;
+  animation: recrux-shimmer 1.35s ease-in-out infinite;
   border-radius: 6px;
 }
-.rounded-card {
+
+.recrux-skeleton-icon {
+  width: 36px;
+  height: 36px;
   border-radius: 8px;
+  flex-shrink: 0;
 }
 
-/* Dashboard: offset main content when fixed sidebar (220px) is visible */
-.dashboard-main {
-  margin-left: 0;
+.recrux-skeleton-line-lg {
+  height: 14px;
+  width: 72%;
+  max-width: 280px;
 }
-@media (min-width: 768px) {
-  .dashboard-main {
-    margin-left: 220px;
-  }
+
+.recrux-skeleton-line-sm {
+  height: 10px;
+  width: 48%;
+  max-width: 200px;
+}
+
+.recrux-skeleton-pill {
+  height: 22px;
+  width: 56px;
+  border-radius: 6px;
+}
+
+.recrux-skeleton-match {
+  height: 22px;
+  width: 44px;
+  border-radius: 4px;
+}
+
+.recrux-skeleton-bar {
+  height: 3px;
+  width: 52px;
+  border-radius: 2px;
 }

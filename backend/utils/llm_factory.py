@@ -26,6 +26,24 @@ def get_llm(temperature=0.1, num_predict=None, client_kwargs=None):
         kwargs["client_kwargs"] = client_kwargs
     return ChatOllama(**kwargs)
 
+
+def get_llm_prose(temperature=0.35, num_predict=None, client_kwargs=None):
+    """
+    Plain-text generation (no JSON mode). Use for resume rewrite, gap explanations, narrative chat.
+    """
+    from langchain_ollama import ChatOllama
+
+    model = (os.getenv("OLLAMA_MODEL") or "llama3.1:8b").strip().strip('"').strip("'")
+    base_url = (os.getenv("OLLAMA_BASE_URL") or "http://localhost:11434").strip().strip('"').strip("'").rstrip("/")
+    print(f"[LLM LOG] Loaded Model (prose): {model} from URL: {base_url}")
+    kwargs: dict = {"model": model, "temperature": temperature, "base_url": base_url}
+    if num_predict is not None:
+        kwargs["num_predict"] = num_predict
+    if client_kwargs:
+        kwargs["client_kwargs"] = client_kwargs
+    return ChatOllama(**kwargs)
+
+
 def get_embeddings():
     """
     Factory function to get the configured Embeddings based on .env.

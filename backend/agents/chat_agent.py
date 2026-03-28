@@ -1,7 +1,7 @@
 from langchain_core.prompts import ChatPromptTemplate
 from utils.vector_db import query_similar_jobs
 
-from utils.llm_factory import get_llm
+from utils.llm_factory import get_llm_prose
 
 # Global placeholders for lazy loading
 _llm = None
@@ -10,8 +10,8 @@ _prompt = None
 def get_chat_chain():
     global _llm, _prompt
     if _llm is None:
-        # Initialize model via factory
-        _llm = get_llm(temperature=0.7)
+        # Plain prose only — get_llm() uses Ollama JSON mode and breaks this prompt (500 → frontend mock).
+        _llm = get_llm_prose(temperature=0.3, num_predict=1500)
         _prompt = ChatPromptTemplate.from_messages([
             ("system", system_prompt),
             ("human", "{question}"),
@@ -19,11 +19,13 @@ def get_chat_chain():
     return _prompt | _llm
 
 system_prompt = """
-You are the Recrux.AI Career Assistant. 
-Provide crisp, professional, 1-2 sentence maximum answers.
-Use the provided Context to give specific advice. If you don't know, say you don't know.
-
-Context:
+You are the Recrux.AI Career Assistant.
+Reply in plain English only: short paragraphs or sentences.
+Never output JSON, YAML, XML, markdown code fences, or curly-brace objects.
+Never use the pattern {{ "key": "value" }}.
+If listing skills, use a comma-separated list or bullet lines in plain text.
+Keep answers concise unless the user asks for detail.
+Context (resume + optional job snippets):
 {context}
 """
 

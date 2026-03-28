@@ -16,17 +16,6 @@ function hashString(s: string) {
   return h;
 }
 
-const SKILL_POOL = [
-  "Kubernetes",
-  "System design",
-  "CI/CD",
-  "GraphQL",
-  "Docker",
-  "Performance tuning",
-  "Security basics",
-  "Database modeling",
-];
-
 function cellLevel(week: number, day: number, seed: number, threshold: number): number {
   const n = ((week * 17 + day * 31 + seed * 13) % 100) / 100;
   if (n < threshold) return 0;
@@ -139,20 +128,31 @@ export function Progress() {
     });
   }, [hasActivity, avgMatch, seed]);
 
+  const skillPool = [
+    "Kubernetes",
+    "System design",
+    "CI/CD",
+    "GraphQL",
+    "Docker",
+    "Performance tuning",
+    "Security basics",
+    "Database modeling",
+  ];
+
   const skillGaps = useMemo(() => {
     if (appliedCount <= 0) {
       // Use filters-driven seed so the suggested gaps still feel personalized.
-      const idxA = seed % SKILL_POOL.length;
-      const idxB = (seed + 11) % SKILL_POOL.length;
-      const idxC = (seed + 29) % SKILL_POOL.length;
-      const picked = new Set<string>([SKILL_POOL[idxA], SKILL_POOL[idxB], SKILL_POOL[idxC]]);
-      while (picked.size < 3) picked.add(SKILL_POOL[(picked.size * 17 + seed) % SKILL_POOL.length]);
+      const idxA = seed % skillPool.length;
+      const idxB = (seed + 11) % skillPool.length;
+      const idxC = (seed + 29) % skillPool.length;
+      const picked = new Set<string>([skillPool[idxA], skillPool[idxB], skillPool[idxC]]);
+      while (picked.size < 3) picked.add(skillPool[(picked.size * 17 + seed) % skillPool.length]);
       return Array.from(picked);
     }
     const picks = new Set<string>();
     while (picks.size < 3) {
-      const idx = (seed + picks.size * 11) % SKILL_POOL.length;
-      picks.add(SKILL_POOL[idx] as string);
+      const idx = (seed + picks.size * 11) % skillPool.length;
+      picks.add(skillPool[idx] as string);
     }
     return Array.from(picks);
   }, [appliedCount, seed]);

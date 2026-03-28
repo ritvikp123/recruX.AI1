@@ -1,5 +1,6 @@
+import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
-import { Sparkles } from "lucide-react";
+import { Check, Circle, Sparkles } from "lucide-react";
 import { R } from "../recrux/theme";
 
 const hairline = `0.5px solid ${R.border}`;
@@ -119,6 +120,81 @@ function buildRoadmap(role: RoleOption, timeframe: TimeframeOption): {
   }
 }
 
+function Column({
+  label,
+  tone,
+  icon,
+  items,
+}: {
+  label: string;
+  tone: "done" | "active" | "soon";
+  icon: ReactNode;
+  items: Item[];
+}) {
+  const labelColor =
+    tone === "done" ? "#166534" : tone === "active" ? R.primary : R.deep;
+  const bar =
+    tone === "done"
+      ? `linear-gradient(90deg, #22c55e, ${R.mid})`
+      : tone === "active"
+        ? `linear-gradient(90deg, ${R.primary}, ${R.mid})`
+        : `linear-gradient(90deg, ${R.muted}, ${R.border})`;
+
+  return (
+    <div
+      style={{
+        background: R.card,
+        border: hairline,
+        borderRadius: 14,
+        overflow: "hidden",
+        boxShadow: "0 2px 12px rgba(4, 44, 83, 0.06)",
+      }}
+    >
+      <div style={{ height: 3, background: bar }} />
+      <div style={{ padding: "18px 18px 16px", borderBottom: hairline, display: "flex", alignItems: "center", gap: 10 }}>
+        <div
+          style={{
+            width: 36,
+            height: 36,
+            borderRadius: 10,
+            background: R.light,
+            color: R.primary,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          {icon}
+        </div>
+        <div>
+          <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: labelColor, margin: 0 }}>
+            {label}
+          </p>
+          <p style={{ fontSize: 13, fontWeight: 600, color: R.darkest, margin: "2px 0 0" }}>{items.length} items</p>
+        </div>
+      </div>
+      <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+        {items.map((item, i) => (
+          <li
+            key={item.title}
+            style={{
+              padding: "14px 18px",
+              borderTop: i === 0 ? undefined : hairline,
+            }}
+          >
+            <p className="recrux-heading" style={{ fontSize: 15, fontWeight: 600, color: R.darkest, margin: 0 }}>
+              {item.title}
+            </p>
+            {item.detail && (
+              <p style={{ fontSize: 13, color: R.body, margin: "6px 0 0", lineHeight: 1.45 }}>{item.detail}</p>
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 type PhasePlan = { title: string; durationLabel: string; bullets: string[] };
 
 function parseMonths(tf: TimeframeOption): number {
@@ -129,7 +205,7 @@ function parseMonths(tf: TimeframeOption): number {
 
 function allocatePhaseRanges(totalWeeks: number, phaseCount = 4): { start: number; end: number }[] {
   const base = Math.floor(totalWeeks / phaseCount);
-  const remainder = totalWeeks - base * phaseCount;
+  let remainder = totalWeeks - base * phaseCount;
 
   const sizes: number[] = Array.from({ length: phaseCount }, () => base);
   for (let i = 0; i < remainder; i++) sizes[i] += 1;

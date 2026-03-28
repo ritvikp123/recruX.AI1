@@ -2,6 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { Bookmark } from "lucide-react";
 import { useJobStore } from "../store/useJobStore";
 import { mapJobToRecruxCard } from "../recrux/mapJobToCard";
+import { R } from "../recrux/theme";
 import { RecruxJobCard } from "../components/recrux/RecruxJobCard";
 import { RecruxEmptyState } from "../components/recrux/RecruxEmptyState";
 import { RecruxListPageShell } from "../components/recrux/RecruxListPageShell";

@@ -1,24 +1,26 @@
 import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { supabase } from "../lib/supabase";
-import { parseResume } from "../lib/api";
+import { parseResume, resumeGapWhy, resumeOptimizeForJob } from "../lib/api";
 import { useJobStore } from "../store/useJobStore";
 import { R } from "../recrux/theme";
 
 export function ResumeOptimizer() {
   const { user } = useAuth();
   const setResumeText = useJobStore((s) => s.setResumeText);
+  const resumeText = useJobStore((s) => s.resumeText);
   const [tab, setTab] = useState<"optimize" | "why">("optimize");
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [jobDescription, setJobDescription] = useState("");
   const [optimized, setOptimized] = useState("");
-  const [streaming, setStreaming] = useState(false);
-
-  const summary =
-    "CS student with internship experience in full-stack web apps. Passionate about clean UI and reliable APIs.";
-  const experience =
-    "Software Intern — Acme (Summer 2025)\nBuilt React dashboards and Node APIs for internal ops.";
-  const skills = "TypeScript, React, Node.js, PostgreSQL, Tailwind CSS";
+  const [whyText, setWhyText] = useState("");
+  const [busyOptimize, setBusyOptimize] = useState(false);
+  const [busyWhy, setBusyWhy] = useState(false);
+  const [tailorError, setTailorError] = useState<string | null>(null);
+  const [parsedSummary, setParsedSummary] = useState("");
+  const [parsedExperience, setParsedExperience] = useState("");
+  const [parsedSkills, setParsedSkills] = useState("");
 
   const card = {
     background: R.card,
@@ -29,20 +31,54 @@ export function ResumeOptimizer() {
 
   const panelHairline = `0.5px solid ${R.border}`;
 
-  const mockOptimize = () => {
-    setStreaming(true);
+  const resumeForApi = () => (resumeText || "").trim();
+
+  const runOptimize = async () => {
+    const rt = resumeForApi();
+    const jd = jobDescription.trim();
+    if (!rt) {
+      setTailorError("Upload and parse a resume first (or ensure profile has resume text).");
+      return;
+    }
+    if (!jd) {
+      setTailorError("Paste a job description.");
+      return;
+    }
+    setTailorError(null);
+    setBusyOptimize(true);
     setOptimized("");
-    const text =
-      "• Led development of customer-facing React dashboards, improving task completion time by 18%.\n• Shipped REST APIs in Node.js with PostgreSQL, with 99.9% uptime during internship.";
-    let i = 0;
-    const id = window.setInterval(() => {
-      i += 1;
-      setOptimized(text.slice(0, i));
-      if (i >= text.length) {
-        window.clearInterval(id);
-        setStreaming(false);
-      }
-    }, 18);
+    try {
+      const { text } = await resumeOptimizeForJob(rt, jd);
+      setOptimized(text);
+    } catch (e: unknown) {
+      setTailorError(e instanceof Error ? e.message : "Optimize failed.");
+    } finally {
+      setBusyOptimize(false);
+    }
+  };
+
+  const runWhy = async () => {
+    const rt = resumeForApi();
+    const jd = jobDescription.trim();
+    if (!rt) {
+      setTailorError("Upload and parse a resume first (or ensure profile has resume text).");
+      return;
+    }
+    if (!jd) {
+      setTailorError("Paste a job description.");
+      return;
+    }
+    setTailorError(null);
+    setBusyWhy(true);
+    setWhyText("");
+    try {
+      const { text } = await resumeGapWhy(rt, jd);
+      setWhyText(text);
+    } catch (e: unknown) {
+      setTailorError(e instanceof Error ? e.message : "Analysis failed.");
+    } finally {
+      setBusyWhy(false);
+    }
   };
 
   const handleUpload = async () => {
@@ -64,20 +100,40 @@ export function ResumeOptimizer() {
           const data = await parseResume(file);
           text = data?.raw_text || "";
           setResumeText(text);
-          await supabase
-            .from("profiles")
-            .upsert({
-              id: user.id,
-              resume_text: text || null,
-              skills: data?.skills?.length ? data.skills : null,
-              updated_at: new Date().toISOString(),
-            });
-        } catch {
-          /* optional backend */
+
+          setParsedSummary((data?.professional_summary || "").trim() || "No summary found.");
+
+          const exp = Array.isArray(data?.experience)
+            ? data.experience
+                .map((e: unknown) => {
+                  const row = e as Record<string, unknown>;
+                  const head = [row?.role, row?.company].filter(Boolean).join(" — ");
+                  const duration = row?.duration ? ` (${row.duration})` : "";
+                  const desc = String(row?.description || "").trim();
+                  return `${head}${duration}${desc ? `\n${desc}` : ""}`.trim();
+                })
+                .filter(Boolean)
+                .join("\n\n")
+            : "";
+          setParsedExperience(exp || "No experience extracted.");
+          setParsedSkills(
+            Array.isArray(data?.skills) && data.skills.length
+              ? data.skills.join(", ")
+              : "No skills extracted."
+          );
+          await supabase.from("profiles").upsert({
+            id: user.id,
+            resume_text: text || null,
+            skills: data?.skills?.length ? data.skills : null,
+            updated_at: new Date().toISOString(),
+          });
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : "Parse failed.";
+          alert(`Resume parse failed: ${msg}`);
         }
       }
       if (!text) setResumeText("Resume uploaded.");
-      alert("Uploaded to Supabase Storage.");
+      alert("Resume uploaded successfully.");
     } catch (e: unknown) {
       alert(e instanceof Error ? e.message : "Upload failed.");
     } finally {
@@ -114,136 +170,171 @@ export function ResumeOptimizer() {
       }}
     >
       <div style={{ padding: 20, flex: 1, minHeight: 0, overflowY: "auto" }}>
-      <h1 style={{ fontSize: 22, fontWeight: 700, color: R.darkest, marginBottom: 16 }}>
-        Resume optimizer
-      </h1>
+        <h1 style={{ fontSize: 22, fontWeight: 700, color: R.darkest, marginBottom: 16 }}>
+          Resume optimizer
+        </h1>
 
-      <div style={{ ...card, marginBottom: 16 }}>
-        <p style={{ fontSize: 13, fontWeight: 500, color: R.darkest }}>Upload resume (PDF)</p>
-        <input
-          type="file"
-          accept=".pdf"
-          onChange={(e) => setFile(e.target.files?.[0] || null)}
-          style={{ marginTop: 8, fontSize: 12 }}
-        />
-        <button
-          type="button"
-          onClick={() => void handleUpload()}
-          disabled={uploading}
-          style={{
-            marginTop: 12,
-            background: R.primary,
-            color: "#fff",
-            border: "none",
-            borderRadius: 8,
-            padding: "8px 16px",
-            fontSize: 12,
-            fontWeight: 500,
-            cursor: "pointer",
-            opacity: uploading ? 0.6 : 1,
-          }}
-        >
-          {uploading ? "Uploading…" : "Upload to Supabase"}
-        </button>
-      </div>
-
-      <div className="recrux-resume-grid">
-        <div style={card}>
-          <h2 style={{ fontSize: 13, fontWeight: 500, color: R.darkest, marginBottom: 12 }}>
-            Parsed sections
-          </h2>
-          <div style={{ marginBottom: 12 }}>
-            <p style={{ fontSize: 11, fontWeight: 500, color: R.primary }}>Summary</p>
-            <p style={{ fontSize: 11, color: R.deep, marginTop: 4 }}>{summary}</p>
-          </div>
-          <div style={{ marginBottom: 12 }}>
-            <p style={{ fontSize: 11, fontWeight: 500, color: R.primary }}>Experience</p>
-            <pre
-              style={{
-                fontSize: 11,
-                color: R.deep,
-                marginTop: 4,
-                whiteSpace: "pre-wrap",
-                fontFamily: "inherit",
-              }}
-            >
-              {experience}
-            </pre>
-          </div>
-          <div>
-            <p style={{ fontSize: 11, fontWeight: 500, color: R.primary }}>Skills</p>
-            <p style={{ fontSize: 11, color: R.deep, marginTop: 4 }}>{skills}</p>
-          </div>
+        <div style={{ ...card, marginBottom: 16 }}>
+          <p style={{ fontSize: 13, fontWeight: 500, color: R.darkest }}>Upload resume (PDF)</p>
+          <input
+            type="file"
+            accept=".pdf,.docx"
+            onChange={(e) => setFile(e.target.files?.[0] || null)}
+            style={{ marginTop: 8, fontSize: 12 }}
+          />
+          <button
+            type="button"
+            onClick={() => void handleUpload()}
+            disabled={uploading}
+            style={{
+              marginTop: 12,
+              background: R.primary,
+              color: "#fff",
+              border: "none",
+              borderRadius: 8,
+              padding: "8px 16px",
+              fontSize: 12,
+              fontWeight: 500,
+              cursor: "pointer",
+              opacity: uploading ? 0.6 : 1,
+            }}
+          >
+            {uploading ? "Uploading…" : "Upload Resume"}
+          </button>
         </div>
 
-        <div style={card}>
-          <div style={{ display: "flex", gap: 8, marginBottom: 16, borderBottom: `0.5px solid ${R.border}`, paddingBottom: 12 }}>
-            <button type="button" style={pill(tab === "optimize")} onClick={() => setTab("optimize")}>
-              Optimize for job
-            </button>
-            <button type="button" style={pill(tab === "why")} onClick={() => setTab("why")}>
-              Why you didn&apos;t get it
-            </button>
-          </div>
-
-          {tab === "optimize" && (
-            <>
-              <textarea
-                placeholder="Paste job description…"
-                defaultValue="Looking for a React engineer with TypeScript and API experience."
+        <div className="recrux-resume-grid">
+          <div style={card}>
+            <h2 style={{ fontSize: 13, fontWeight: 500, color: R.darkest, marginBottom: 12 }}>
+              Parsed sections
+            </h2>
+            <div style={{ marginBottom: 12 }}>
+              <p style={{ fontSize: 11, fontWeight: 500, color: R.primary }}>Summary</p>
+              <p style={{ fontSize: 11, color: R.deep, marginTop: 4 }}>{parsedSummary}</p>
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <p style={{ fontSize: 11, fontWeight: 500, color: R.primary }}>Experience</p>
+              <pre
                 style={{
-                  width: "100%",
-                  minHeight: 100,
-                  border: `0.5px solid ${R.border}`,
-                  borderRadius: 8,
-                  padding: 10,
                   fontSize: 11,
-                  marginBottom: 12,
-                }}
-              />
-              <button
-                type="button"
-                onClick={mockOptimize}
-                disabled={streaming}
-                style={{
-                  background: R.primary,
-                  color: "#fff",
-                  border: "none",
-                  borderRadius: 8,
-                  padding: "8px 16px",
-                  fontSize: 12,
-                  cursor: "pointer",
+                  color: R.deep,
+                  marginTop: 4,
+                  whiteSpace: "pre-wrap",
+                  fontFamily: "inherit",
                 }}
               >
-                {streaming ? "Streaming…" : "Optimize (mock)"}
+                {parsedExperience}
+              </pre>
+            </div>
+            <div>
+              <p style={{ fontSize: 11, fontWeight: 500, color: R.primary }}>Skills</p>
+              <p style={{ fontSize: 11, color: R.deep, marginTop: 4 }}>{parsedSkills}</p>
+            </div>
+          </div>
+
+          <div style={card}>
+            <div
+              style={{
+                display: "flex",
+                gap: 8,
+                marginBottom: 16,
+                borderBottom: `0.5px solid ${R.border}`,
+                paddingBottom: 12,
+              }}
+            >
+              <button type="button" style={pill(tab === "optimize")} onClick={() => setTab("optimize")}>
+                Optimize for job
               </button>
-              <p style={{ fontSize: 10, color: R.deep, marginTop: 8 }}>
-                Connect OpenAI/Claude for real rewrites.
-              </p>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 12 }}>
-                <div>
-                  <p style={{ fontSize: 10, fontWeight: 500, color: R.deep }}>Original</p>
-                  <p style={{ fontSize: 11, color: R.darkest, marginTop: 4 }}>{experience}</p>
-                </div>
-                <div>
-                  <p style={{ fontSize: 10, fontWeight: 500, color: R.deep }}>Optimized</p>
-                  <p style={{ fontSize: 11, color: R.darkest, marginTop: 4, whiteSpace: "pre-wrap" }}>
-                    {optimized}
-                  </p>
-                </div>
-              </div>
-            </>
-          )}
+              <button type="button" style={pill(tab === "why")} onClick={() => setTab("why")}>
+                Why you didn&apos;t get it
+              </button>
+            </div>
 
-          {tab === "why" && (
-            <p style={{ fontSize: 12, color: R.deep, lineHeight: 1.5 }}>
-              This role emphasizes distributed systems and Kubernetes. Your resume highlights frontend
-              and Node — add a project line for containers and cloud deployment.
-            </p>
-          )}
+            <textarea
+              value={jobDescription}
+              onChange={(e) => setJobDescription(e.target.value)}
+              placeholder="Paste the full job description here…"
+              style={{
+                width: "100%",
+                minHeight: 100,
+                border: `0.5px solid ${R.border}`,
+                borderRadius: 8,
+                padding: 10,
+                fontSize: 11,
+                marginBottom: 12,
+                boxSizing: "border-box",
+              }}
+            />
+
+            {tailorError && (
+              <p style={{ fontSize: 11, color: R.warnText, marginBottom: 8 }}>{tailorError}</p>
+            )}
+
+            {tab === "optimize" && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => void runOptimize()}
+                  disabled={busyOptimize}
+                  style={{
+                    background: R.primary,
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: 8,
+                    padding: "8px 16px",
+                    fontSize: 12,
+                    cursor: busyOptimize ? "default" : "pointer",
+                    opacity: busyOptimize ? 0.7 : 1,
+                  }}
+                >
+                  {busyOptimize ? "Optimizing…" : "Optimize for this job"}
+                </button>
+                <p style={{ fontSize: 10, color: R.deep, marginTop: 8 }}>
+                  Uses your stored resume text and the job description above (local Ollama via API).
+                </p>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 12 }}>
+                  <div>
+                    <p style={{ fontSize: 10, fontWeight: 500, color: R.deep }}>Original (experience)</p>
+                    <p style={{ fontSize: 11, color: R.darkest, marginTop: 4 }}>{parsedExperience}</p>
+                  </div>
+                  <div>
+                    <p style={{ fontSize: 10, fontWeight: 500, color: R.deep }}>Optimized</p>
+                    <p style={{ fontSize: 11, color: R.darkest, marginTop: 4, whiteSpace: "pre-wrap" }}>
+                      {optimized}
+                    </p>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {tab === "why" && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => void runWhy()}
+                  disabled={busyWhy}
+                  style={{
+                    background: R.primary,
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: 8,
+                    padding: "8px 16px",
+                    fontSize: 12,
+                    cursor: busyWhy ? "default" : "pointer",
+                    opacity: busyWhy ? 0.7 : 1,
+                    marginBottom: 12,
+                  }}
+                >
+                  {busyWhy ? "Analyzing…" : "Analyze gaps"}
+                </button>
+                <p style={{ fontSize: 12, color: R.deep, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>
+                  {whyText ||
+                    "Paste a job description and click Analyze gaps. Results use your resume text from the last successful parse."}
+                </p>
+              </>
+            )}
+          </div>
         </div>
-      </div>
-
       </div>
     </div>
   );

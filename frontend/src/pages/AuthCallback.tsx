@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../context/AuthContext";
+import { persistOnboardingPreferences, readOnboardingDraft, clearOnboardingDraft } from "../lib/onboardingPreferences";
 
 /**
  * Supabase OAuth redirects here with tokens in the URL hash.
@@ -16,10 +17,20 @@ export function AuthCallback() {
     let cancelled = false;
 
     const finish = () => {
-      supabase.auth.getSession().then(({ data: { session } }) => {
+      supabase.auth.getSession().then(async ({ data: { session } }) => {
         if (cancelled) return;
         if (session) {
           setSessionFromAuth(session);
+          // If onboarding draft exists, persist it now that we have an authenticated session.
+          const onboardingData = readOnboardingDraft();
+          if (onboardingData && session.user?.id) {
+            try {
+              await persistOnboardingPreferences(session.user.id, onboardingData);
+              clearOnboardingDraft();
+            } catch (err) {
+              console.warn("Failed to persist onboarding preferences:", err);
+            }
+          }
           navigate("/dashboard", { replace: true });
         } else {
           setMessage("Sign-in was cancelled or failed.");

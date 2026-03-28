@@ -18,6 +18,7 @@ import { SavedJobs } from "./pages/SavedJobs";
 import { AppliedJobs } from "./pages/AppliedJobs";
 import { Settings } from "./pages/Settings";
 import { Roadmap } from "./pages/Roadmap";
+import { OnboardingFlow } from "./components/onboarding/OnboardingFlow";
 
 function AppRoutes() {
   const { user, loading } = useAuth();
@@ -48,6 +49,7 @@ function AppRoutes() {
       />
       <Route path="/signin" element={<SignIn />} />
       <Route path="/signup" element={<SignUp />} />
+      <Route path="/get-started" element={<OnboardingFlow />} />
       <Route path="/auth/callback" element={<AuthCallback />} />
       <Route path="/reset-password" element={<ForgotPassword />} />
 

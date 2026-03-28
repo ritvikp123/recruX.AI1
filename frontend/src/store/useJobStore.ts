@@ -196,10 +196,15 @@ export const useJobStore = create<JobState>()(
       },
 
       fetchDashboardPreview: async (computeMatch) => {
-        const { resumeText } = get();
+        const { resumeText, filters } = get();
         set({ dashboardLoading: true, error: null });
         try {
-          const list = await searchJSearchJobs({ query: "Software Engineer", page: 1 });
+          const list = await searchJSearchJobs({
+            query: filters.query || "Software Engineer",
+            page: 1,
+            remoteOnly: filters.remoteOnly,
+            employmentType: filters.employmentType,
+          });
           const withScores = list.slice(0, 5).map((j) => ({
             ...j,
             matchScore: computeMatch(resumeText, j),
@@ -209,14 +214,15 @@ export const useJobStore = create<JobState>()(
           // If JSearch isn't configured (or the API fails), we still want the dashboard to show
           // a handful of high-match cards so the UI isn't empty.
           const mock = (start: number) => {
+            const baseTitle = filters.query || "Software Engineer";
             const mk = (i: number) => ({
               id: `mock-dashboard-${start + i}`,
               title: [
-                "Software Engineer",
-                "Frontend Engineer",
-                "Full Stack Engineer",
-                "Backend Engineer",
-                "Platform Engineer",
+                baseTitle,
+                `${baseTitle} (Frontend)`,
+                `${baseTitle} (Full Stack)`,
+                `${baseTitle} (Backend)`,
+                `${baseTitle} (Platform)`,
               ][i]!,
               company: [
                 "Northwind Labs",
@@ -225,13 +231,15 @@ export const useJobStore = create<JobState>()(
                 "Globex Tech",
                 "Initech",
               ][i]!,
-              location: ["Remote", "Hybrid", "San Francisco, CA", "Austin, TX", "New York, NY"][i]!,
+              location: filters.remoteOnly
+                ? "Remote"
+                : ["Remote", "Hybrid", "San Francisco, CA", "Austin, TX", "New York, NY"][i]!,
               description:
                 "Mock listing: align your resume with this role, focus on impact, and prepare an interview narrative from your project evidence.",
               applyUrl: undefined,
               salaryMin: undefined,
               salaryMax: undefined,
-              remote: [true, false, false, false, false][i]!,
+              remote: filters.remoteOnly ? true : [true, false, false, false, false][i]!,
               skills: ["React", "TypeScript", "APIs", "Testing", "System Design"],
               postedAt: undefined,
               matchScore: [96, 92, 88, 85, 82][i]!,

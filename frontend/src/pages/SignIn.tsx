@@ -6,6 +6,7 @@ import { AuthLayout } from "../components/AuthLayout";
 import { SocialButton } from "../components/SocialButton";
 import { useAuth } from "../context/AuthContext";
 import { supabase } from "../lib/supabase";
+import { persistOnboardingPreferences, readOnboardingDraft, clearOnboardingDraft } from "../lib/onboardingPreferences";
 
 export function SignIn() {
   const [email, setEmail] = useState("");
@@ -38,6 +39,17 @@ export function SignIn() {
       return;
     }
     setSessionFromAuth(data.session);
+
+    // If the user came from onboarding, persist preferences after they successfully sign in.
+    const onboardingData = readOnboardingDraft();
+    if (onboardingData && data.user?.id) {
+      try {
+        await persistOnboardingPreferences(data.user.id, onboardingData);
+        clearOnboardingDraft();
+      } catch (err) {
+        console.warn("Failed to persist onboarding preferences:", err);
+      }
+    }
     const from = (location.state as { from?: { pathname: string } } | null)?.from?.pathname;
     navigate(from && from !== "/signin" ? from : "/dashboard", { replace: true });
   };

@@ -1,7 +1,9 @@
+import { scoreJob } from "../lib/api";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Filter, SlidersHorizontal, X } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { useJobStore } from "../store/useJobStore";
+import { supabase } from "../lib/supabase";
 import { computeMatchScore } from "../lib/matchScore";
 import { mapJobToRecruxCard } from "../recrux/mapJobToCard";
 import { R } from "../recrux/theme";
@@ -39,6 +41,19 @@ const WORK_MODE_OPTIONS: { value: WorkMode; label: string }[] = [
   { value: "INPERSON", label: "In-person" },
 ];
 
+function buildJobDescriptionForScore(job: Job): string {
+  const parts = [
+    job.title,
+    job.company,
+    job.location,
+    job.description,
+    Array.isArray(job.skills) && job.skills.length ? `Skills: ${job.skills.join(", ")}` : "",
+  ].filter(Boolean);
+  const s = parts.join("\n").trim();
+  if (s.length > 0) return s;
+  return [job.title, job.company, job.location].filter(Boolean).join(" · ").trim() || "Job listing";
+}
+
 export function Jobs() {
   const [salaryMin, setSalaryMin] = useState("");
   const [minMatch, setMinMatch] = useState(0);
@@ -46,6 +61,11 @@ export function Jobs() {
   const [sortBy, setSortBy] = useState<SortKey>("match-desc");
   const [hideApplied, setHideApplied] = useState(false);
   const [workMode, setWorkMode] = useState<WorkMode>("ANY");
+  const [prefsLoaded, setPrefsLoaded] = useState(false);
+  const [apiMatchScore, setApiMatchScore] = useState<number | null>(null);
+  const [apiMatchReasoning, setApiMatchReasoning] = useState<string | null>(null);
+  const [scoreLoading, setScoreLoading] = useState(false);
+  const [scoreError, setScoreError] = useState<string | null>(null);
   const queryInputRef = useRef<HTMLInputElement>(null);
   const { user } = useAuth();
   const jobs = useJobStore((s) => s.jobs);
@@ -68,15 +88,134 @@ export function Jobs() {
   }, [user?.id, loadResumeFromSupabase]);
 
   useEffect(() => {
-    void fetchJobs(computeMatchScore);
-  }, [fetchJobs, resumeText]);
+    if (!user?.id) return;
+    setPrefsLoaded(false);
+    void (async () => {
+      try {
+        const { data: prefs } = await supabase
+          .from("user_preferences")
+          .select("*")
+          .eq("user_id", user.id)
+          .maybeSingle();
 
+        if (!prefs) return;
+
+        const roles = Array.isArray(prefs.roles) ? (prefs.roles as string[]) : [];
+        const industries = Array.isArray(prefs.industries) ? (prefs.industries as string[]) : [];
+        const employmentTypes = Array.isArray(prefs.employment_types) ? (prefs.employment_types as string[]) : [];
+        const workLocation = Array.isArray(prefs.work_location) ? (prefs.work_location as string[]) : [];
+
+        const query = roles[0] || industries[0] || "Software Engineer";
+
+        const employmentType = (() => {
+          if (employmentTypes.some((t) => t.includes("Full-Time"))) return "FULLTIME";
+          if (employmentTypes.some((t) => t.includes("Part-Time"))) return "PARTTIME";
+          if (employmentTypes.some((t) => t.includes("Intern") || t.includes("Co-op"))) return "INTERN";
+          if (employmentTypes.some((t) => t.includes("Contract") || t.includes("Temporary"))) return "CONTRACTOR";
+          return "";
+        })();
+
+        const remoteOnly =
+          workLocation.some((w) => w.includes("Fully Remote")) &&
+          !workLocation.some((w) => w.includes("Hybrid") || w.includes("On-Site"));
+
+        // Pre-seed client-side work-mode dropdown for better UX.
+        const derivedWorkMode: WorkMode =
+          workLocation.some((w) => w.includes("Fully Remote")) &&
+          !workLocation.some((w) => w.includes("Hybrid") || w.includes("On-Site"))
+            ? "REMOTE"
+            : workLocation.some((w) => w.includes("Hybrid"))
+              ? "HYBRID"
+              : workLocation.some((w) => w.includes("On-Site"))
+                ? "INPERSON"
+                : "ANY";
+
+        setWorkMode(derivedWorkMode);
+        setFilters({
+          query,
+          remoteOnly,
+          employmentType,
+          location: "",
+        });
+      } catch {
+        // If prefs aren't available yet, fall back to existing defaults.
+      } finally {
+        setPrefsLoaded(true);
+      }
+    })();
+  }, [user?.id, setFilters]);
+
+  useEffect(() => {
+    if (!prefsLoaded) return;
+    void fetchJobs(computeMatchScore);
+  }, [fetchJobs, resumeText, prefsLoaded]);
+
+  useEffect(() => {
+    if (!selectedJob) {
+      setApiMatchScore(null);
+      setApiMatchReasoning(null);
+      setScoreError(null);
+      setScoreLoading(false);
+      return;
+    }
+
+    const resume = resumeText?.trim() ?? "";
+    const jd = buildJobDescriptionForScore(selectedJob);
+
+    if (!resume) {
+      setApiMatchScore(null);
+      setApiMatchReasoning(null);
+      setScoreError("Add a resume (Resume page) to get an AI match score.");
+      setScoreLoading(false);
+      return;
+    }
+
+    if (!jd) {
+      setApiMatchScore(null);
+      setApiMatchReasoning(null);
+      setScoreError("This listing has no description to score against.");
+      setScoreLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setScoreLoading(true);
+    setScoreError(null);
+
+    void scoreJob(resume, jd)
+      .then((data) => {
+        if (cancelled) return;
+        const first = data.scores[0];
+        if (!first) {
+          setApiMatchScore(null);
+          setApiMatchReasoning(null);
+          setScoreError("No score returned.");
+          return;
+        }
+        setApiMatchScore(first.match_score);
+        setApiMatchReasoning(first.reasoning ?? null);
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        const msg = err instanceof Error ? err.message : String(err);
+        setApiMatchScore(null);
+        setApiMatchReasoning(null);
+        setScoreError(msg);
+      })
+      .finally(() => {
+        if (!cancelled) setScoreLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedJob, resumeText]);
   const savedIds = new Set(savedJobs.map((j) => j.id));
   const appliedSet = useMemo(() => new Set(appliedJobIds), [appliedJobIds]);
 
   const filtered = useMemo(() => {
     const qCompany = companyFilter.trim().toLowerCase();
-    const list = jobs.filter((j) => {
+    let list = jobs.filter((j) => {
       if (filters.location && !j.location?.toLowerCase().includes(filters.location.toLowerCase())) return false;
       if (salaryMin && j.salaryMax && j.salaryMax < Number(salaryMin) * 1000) return false;
       if (filters.remoteOnly && j.remote !== true) return false;
@@ -117,13 +256,12 @@ export function Jobs() {
     hideApplied,
     appliedSet,
     sortBy,
-    workMode,
   ]);
 
   const gapSkills = ["System design", "Kubernetes", "GraphQL"];
 
-  const breakdownForJob = (j: Job) => {
-    const m = j.matchScore ?? 70;
+    const breakdownForJob = (j: Job) => {
+    const m = apiMatchScore ?? j.matchScore ?? 70;
     return [
       { label: "Skills", pct: Math.min(99, m + 5) },
       { label: "Experience", pct: m },
@@ -552,6 +690,17 @@ export function Jobs() {
           >
             {selectedJob.description || "No description."}
           </p>
+          {scoreLoading && (
+            <p style={{ fontSize: 11, color: R.deep, marginTop: 12 }}>Scoring match…</p>
+          )}
+          {scoreError && !scoreLoading && (
+            <p style={{ fontSize: 11, color: R.warnText, marginTop: 12 }}>{scoreError}</p>
+          )}
+          {apiMatchReasoning && !scoreLoading && (
+            <p style={{ fontSize: 11, color: R.deep, lineHeight: 1.5, marginTop: 12 }}>
+              {apiMatchReasoning}
+            </p>
+          )}
           <div style={{ marginTop: 16 }}>
             <RecruxMatchBreakdown breakdown={breakdownForJob(selectedJob)} />
           </div>

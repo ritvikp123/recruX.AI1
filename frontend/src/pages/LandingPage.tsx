@@ -275,7 +275,7 @@ export function LandingPage() {
             </p>
             <div className="landing-hero-cta" style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 28 }}>
               <Link
-                to="/signup"
+                to="/get-started"
                 style={{
                   display: "inline-flex",
                   alignItems: "center",
@@ -503,7 +503,7 @@ export function LandingPage() {
             ))}
           </ol>
           <Link
-            to="/signup"
+            to="/get-started"
             style={{
               display: "inline-flex",
               alignItems: "center",

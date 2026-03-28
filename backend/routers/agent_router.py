@@ -3,13 +3,25 @@ import os
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Request, Response
 from typing import List, Optional
 from pydantic import BaseModel
-from models.schemas import ResumeParseOutput, ResumeExtractOutput, JobSearchOutput, JobMatchScoreOutput, GraphWorkflowOutput, ChatRequest, ChatResponse
+from models.schemas import (
+    ResumeParseOutput,
+    ResumeExtractOutput,
+    JobSearchOutput,
+    JobMatchScoreOutput,
+    JobScoreRequest,
+    ResumeTailorRequest,
+    ResumeTailorTextResponse,
+    GraphWorkflowOutput,
+    ChatRequest,
+    ChatResponse,
+)
 from agents.graph import app_graph
 from agents.chat_agent import ask_assistant
 
 from agents.resume_agent import process_resume
 from agents.job_search_agent import search_jobs
 from agents.job_match_agent import score_jobs
+from agents.resume_tailor_agent import explain_resume_gap, optimize_resume_for_job
 from utils.file_parser import extract_text_from_file
 from utils.database import save_profile, get_profile
 from utils.llm_factory import get_llm
@@ -357,6 +369,53 @@ async def parse_resume(file: UploadFile = File(...)):
         print(f"[API ERROR] {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
+@router.options("/resume/optimize")
+async def resume_optimize_options():
+    return Response(status_code=200)
+
+
+@router.options("/resume/gap-why")
+async def resume_gap_why_options():
+    return Response(status_code=200)
+
+
+@router.post("/resume/optimize", response_model=ResumeTailorTextResponse, tags=["Agents"])
+async def resume_optimize_for_job(body: ResumeTailorRequest):
+    """
+    Tailor resume bullets / experience narrative to a job description (plain text).
+    """
+    try:
+        rt = (body.resume_text or "").strip()
+        jd = (body.job_description or "").strip()
+        if not rt or not jd:
+            raise HTTPException(status_code=400, detail="resume_text and job_description required.")
+        text = await optimize_resume_for_job(rt, jd)
+        return ResumeTailorTextResponse(text=text)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/resume/gap-why", response_model=ResumeTailorTextResponse, tags=["Agents"])
+async def resume_gap_why(body: ResumeTailorRequest):
+    """
+    Explain likely gaps between resume and job (why you might not get shortlisted).
+    """
+    try:
+        rt = (body.resume_text or "").strip()
+        jd = (body.job_description or "").strip()
+        if not rt or not jd:
+            raise HTTPException(status_code=400, detail="resume_text and job_description required.")
+        text = await explain_resume_gap(rt, jd)
+        return ResumeTailorTextResponse(text=text)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.options("/jobs/search")
 async def jobs_search_options():
     """CORS preflight for POST /jobs/search"""
@@ -398,38 +457,17 @@ async def jobs_score_options():
     return Response(status_code=200)
 
 @router.post("/jobs/score", response_model=JobMatchScoreOutput, tags=["Agents"])
-async def calculate_scores(request: Request):
+async def calculate_scores(body: JobScoreRequest):
     """
-    Accepts either JSON { resume_text, job_description } or Form (resume_text, job_descriptions, job_ids).
+    JSON body: resume_text, job_description (snake_case).
+    Declared as Pydantic so OpenAPI/Swagger shows a request body and clients always send application/json.
     """
     try:
-        content_type = request.headers.get("content-type", "")
-        if "application/json" in content_type:
-            body = await request.json()
-            resume_text = body.get("resume_text", "")
-            job_description = body.get("job_description", "")
-            if not resume_text or not job_description:
-                raise HTTPException(status_code=400, detail="resume_text and job_description required.")
-            job_descriptions = [job_description]
-            job_ids = ["0"]
-        else:
-            form = await request.form()
-            resume_text = form.get("resume_text") or ""
-            job_descriptions_raw = form.getlist("job_descriptions") if hasattr(form, "getlist") else []
-            job_ids_raw = form.getlist("job_ids") if hasattr(form, "getlist") else []
-            if isinstance(form.get("job_descriptions"), str):
-                job_descriptions_raw = [form.get("job_descriptions")]
-            if isinstance(form.get("job_ids"), str):
-                job_ids_raw = [form.get("job_ids")]
-            job_descriptions = job_descriptions_raw or [form.get("job_descriptions", "")]
-            job_ids = job_ids_raw or [form.get("job_ids", "0")]
-            if not resume_text:
-                raise HTTPException(status_code=400, detail="resume_text required.")
-
-        if len(job_descriptions) != len(job_ids):
-            raise HTTPException(status_code=400, detail="Length of job_descriptions and job_ids must be equal.")
-
-        scores = await score_jobs(resume_text, job_descriptions, job_ids)
+        resume_text = (body.resume_text or "").strip()
+        job_description = (body.job_description or "").strip()
+        if not resume_text or not job_description:
+            raise HTTPException(status_code=400, detail="resume_text and job_description required.")
+        scores = await score_jobs(resume_text, [job_description], ["0"])
         return JobMatchScoreOutput(scores=scores)
     except HTTPException:
         raise

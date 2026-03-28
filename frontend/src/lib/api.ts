@@ -7,7 +7,7 @@
 import { supabase } from "./supabase";
 
 const BASE_URL =
-  import.meta.env.VITE_API_URL || "http://localhost:8000";
+  import.meta.env.VITE_API_URL || "http://localhost:8001";
 const API_PREFIX = `${BASE_URL}/api`;
 
 /** Authorization + optional Content-Type for JSON requests */
@@ -147,6 +147,28 @@ export async function scoreJob(
   });
 }
 
+// --- Resume tailor (optimize vs JD, gap explanation) ---
+
+export async function resumeOptimizeForJob(
+  resume_text: string,
+  job_description: string
+): Promise<{ text: string }> {
+  return request<{ text: string }>("/resume/optimize", {
+    method: "POST",
+    body: JSON.stringify({ resume_text, job_description }),
+  });
+}
+
+export async function resumeGapWhy(
+  resume_text: string,
+  job_description: string
+): Promise<{ text: string }> {
+  return request<{ text: string }>("/resume/gap-why", {
+    method: "POST",
+    body: JSON.stringify({ resume_text, job_description }),
+  });
+}
+
 // --- Auth (for future backend JWT) ---
 
 export async function login(email: string, password: string): Promise<{ access_token: string }> {
@@ -161,7 +183,7 @@ export async function register(data: {
   password: string;
   full_name?: string;
 }): Promise<{ access_token: string }> {
-  return request<{ access_token: string }>("/auth/signup", {
+  return request<{ access_token: string }>("/auth/register", {
     method: "POST",
     body: JSON.stringify(data),
   });

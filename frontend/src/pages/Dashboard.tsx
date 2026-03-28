@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { useJobStore } from "../store/useJobStore";
+import { supabase } from "../lib/supabase";
 import { computeMatchScore } from "../lib/matchScore";
 import { mapJobToRecruxCard } from "../recrux/mapJobToCard";
 import { R } from "../recrux/theme";
@@ -49,6 +50,7 @@ export function Dashboard() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [matchTab, setMatchTab] = useState<MatchTab>("high");
+  const [prefsLoaded, setPrefsLoaded] = useState(false);
 
   const dashboardJobs = useJobStore((s) => s.dashboardJobs);
   const savedJobs = useJobStore((s) => s.savedJobs);
@@ -57,6 +59,7 @@ export function Dashboard() {
   const dashboardLoading = useJobStore((s) => s.dashboardLoading);
   const error = useJobStore((s) => s.error);
   const fetchDashboardPreview = useJobStore((s) => s.fetchDashboardPreview);
+  const setFilters = useJobStore((s) => s.setFilters);
   const loadResumeFromSupabase = useJobStore((s) => s.loadResumeFromSupabase);
   const resumeText = useJobStore((s) => s.resumeText);
   const toggleSaveJob = useJobStore((s) => s.toggleSaveJob);
@@ -68,8 +71,55 @@ export function Dashboard() {
   }, [user?.id, loadResumeFromSupabase]);
 
   useEffect(() => {
+    if (!user?.id) return;
+    void (async () => {
+      try {
+        const { data: prefs } = await supabase
+          .from("user_preferences")
+          .select("*")
+          .eq("user_id", user.id)
+          .maybeSingle();
+        if (!prefs) {
+          setPrefsLoaded(true);
+          return;
+        }
+
+        const roles = Array.isArray(prefs.roles) ? (prefs.roles as string[]) : [];
+        const industries = Array.isArray(prefs.industries) ? (prefs.industries as string[]) : [];
+        const employmentTypes = Array.isArray(prefs.employment_types) ? (prefs.employment_types as string[]) : [];
+        const workLocation = Array.isArray(prefs.work_location) ? (prefs.work_location as string[]) : [];
+
+        const query = roles[0] || industries[0] || "Software Engineer";
+
+        const employmentType = (() => {
+          if (employmentTypes.some((t) => t.includes("Full-Time"))) return "FULLTIME";
+          if (employmentTypes.some((t) => t.includes("Part-Time"))) return "PARTTIME";
+          if (employmentTypes.some((t) => t.includes("Intern") || t.includes("Co-op"))) return "INTERN";
+          if (employmentTypes.some((t) => t.includes("Contract") || t.includes("Temporary"))) return "CONTRACTOR";
+          return "";
+        })();
+
+        const remoteOnly = workLocation.some((w) => w.includes("Fully Remote")) &&
+          !workLocation.some((w) => w.includes("Hybrid") || w.includes("On-Site"));
+
+        setFilters({
+          query,
+          remoteOnly,
+          employmentType,
+          location: "",
+        });
+      } catch {
+        // If prefs table isn't set up yet, fall back to existing defaults.
+      } finally {
+        setPrefsLoaded(true);
+      }
+    })();
+  }, [user?.id, setFilters]);
+
+  useEffect(() => {
+    if (!prefsLoaded) return;
     void fetchDashboardPreview(computeMatchScore);
-  }, [fetchDashboardPreview, resumeText]);
+  }, [fetchDashboardPreview, resumeText, prefsLoaded]);
 
   const display =
     (user?.user_metadata?.full_name as string) ||

@@ -1,11 +1,17 @@
-import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { useLocation, useNavigate, Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Mail, Lock, User as UserIcon } from "lucide-react";
 import { AuthLayout } from "../components/AuthLayout";
 import { SocialButton } from "../components/SocialButton";
 import { useAuth } from "../context/AuthContext";
 import { supabase } from "../lib/supabase";
+import {
+  persistOnboardingPreferences,
+  readOnboardingDraft,
+  type OnboardingData,
+  ONBOARDING_DRAFT_KEY,
+} from "../lib/onboardingPreferences";
 
 const EXPERIENCE_OPTIONS = [
   "Student / New Grad",
@@ -26,6 +32,7 @@ const FIELD_OPTIONS = [
 ];
 
 export function SignUp() {
+  const location = useLocation();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -38,6 +45,17 @@ export function SignUp() {
   const [submitting, setSubmitting] = useState(false);
   const navigate = useNavigate();
   const { setSessionFromAuth } = useAuth();
+
+  const onboardingData: OnboardingData | null = useMemo(() => {
+    const fromState = (location.state as { onboardingData?: OnboardingData } | null)?.onboardingData;
+    return fromState || readOnboardingDraft();
+  }, [location.state]);
+
+  useEffect(() => {
+    if (onboardingData) {
+      window.sessionStorage.setItem(ONBOARDING_DRAFT_KEY, JSON.stringify(onboardingData));
+    }
+  }, [onboardingData]);
 
   const passwordStrength = password.length > 10 ? "strong" : password.length > 6 ? "medium" : "weak";
 
@@ -91,9 +109,24 @@ export function SignUp() {
     }
 
     if (data.session) {
+      // If the user completed onboarding before sign-up, persist their preferences now.
+      if (onboardingData && data.user?.id) {
+        try {
+          await persistOnboardingPreferences(data.user.id, onboardingData);
+          window.sessionStorage.removeItem(ONBOARDING_DRAFT_KEY);
+        } catch (err) {
+          // If RLS blocks inserts (e.g. pending email confirmation), keep the draft for later.
+          console.warn("Failed to persist onboarding preferences:", err);
+        }
+      }
       setSessionFromAuth(data.session);
       navigate("/dashboard", { replace: true });
       return;
+    }
+
+    // No session yet (email confirmation required). Keep draft so we can save after next sign-in.
+    if (onboardingData) {
+      window.sessionStorage.setItem(ONBOARDING_DRAFT_KEY, JSON.stringify(onboardingData));
     }
 
     setError(

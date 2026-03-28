@@ -99,3 +99,15 @@ class ChatRequest(BaseModel):
 
 class ChatResponse(BaseModel):
     response: str
+
+
+# --- Resume tailor (optimize / gap) ---
+
+class ResumeTailorRequest(BaseModel):
+    """JSON for POST /api/resume/optimize and /api/resume/gap-why"""
+    resume_text: str
+    job_description: str
+
+
+class ResumeTailorTextResponse(BaseModel):
+    text: str

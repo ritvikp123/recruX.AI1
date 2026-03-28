@@ -1,3 +1,4 @@
+import { supabase } from "../lib/supabase";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronUp, Sparkles } from "lucide-react";
 import { useJobStore } from "../store/useJobStore";
@@ -36,6 +37,46 @@ function buildMockAssistantReply(input: string, resumeText: string | undefined) 
 
 const PANEL_BORDER = "0.5px solid #85b7eb";
 
+/** Turn accidental JSON skill blobs into readable text; pass through normal prose. */
+function formatAssistantReply(raw: string): string {
+  const s = raw.trim();
+  if (!s) return raw;
+
+  let candidate = s.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
+
+  // Existing: { "skills": ["a","b"] }
+  if (candidate.startsWith("{") && candidate.includes('"skills"')) {
+    try {
+      const parsed = JSON.parse(candidate) as { skills?: unknown };
+      const list = parsed?.skills;
+      if (Array.isArray(list) && list.every((x) => typeof x === "string")) {
+        return `Skills to focus on: ${list.join(", ")}.`;
+      }
+    } catch {
+      /* fall through */
+    }
+  }
+
+  // New: generic JSON object → "Key: value" lines
+  if (candidate.startsWith("{") && candidate.endsWith("}")) {
+    try {
+      const obj = JSON.parse(candidate) as Record<string, unknown>;
+      if (obj && typeof obj === "object" && !Array.isArray(obj)) {
+        const entries = Object.entries(obj).filter(
+          ([, v]) => typeof v === "string" || typeof v === "number"
+        );
+        if (entries.length) {
+          return entries.map(([k, v]) => `${k}: ${v}`).join("\n");
+        }
+      }
+    } catch {
+      /* not JSON */
+    }
+  }
+
+  return raw;
+}
+
 export function DashboardAIBottomChat() {
   const resumeText = useJobStore((s) => s.resumeText);
 
@@ -73,11 +114,38 @@ export function DashboardAIBottomChat() {
     setInput("");
     setMessages((m) => [...m, { role: "user", content: t }]);
 
-    // Simple “typing” delay to make the UI feel alive.
-    await new Promise((r) => window.setTimeout(r, 500));
-    const reply = buildMockAssistantReply(t, resumeText);
-    setMessages((m) => [...m, { role: "assistant", content: reply }]);
-    setBusy(false);
+    try {
+      const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8001";
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (session?.access_token) {
+        headers["Authorization"] = `Bearer ${session.access_token}`;
+      }
+      const res = await fetch(`${API_URL}/api/chat`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          message: t,
+          user_context: resumeText || "",
+        }),
+      });
+      if (!res.ok) throw new Error("Chat request failed");
+      const data = await res.json();
+      const raw = data?.response || "I could not generate a response.";
+      const reply = formatAssistantReply(typeof raw === "string" ? raw : String(raw));
+      setMessages((m) => [...m, { role: "assistant", content: reply }]);
+    } catch (err) {
+      const useMock =
+        typeof import.meta !== "undefined" && import.meta.env?.DEV === true;
+      const fallback = useMock
+        ? buildMockAssistantReply(t, resumeText)
+        : "The assistant is unavailable right now. Check that the API is running and VITE_API_URL is correct.";
+      setMessages((m) => [...m, { role: "assistant", content: fallback }]);
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (

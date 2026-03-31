@@ -426,11 +426,16 @@ export const useJobStore = create<JobState>()(
     }),
     {
       name: "recrux-activity-v1",
+      version: 2,
+      migrate: (persisted: any, version: number) => {
+        // Drop resume content from persisted storage (privacy + avoids cross-account leakage).
+        if (persisted && typeof persisted === "object") {
+          delete (persisted as any).resumeText;
+          delete (persisted as any).resumeSkills;
+        }
+        return persisted as any;
+      },
       partialize: (state) => ({
-        // Persist resume text so leaving the Resume page (or a refresh) doesn't
-        // make Jobs scoring / Copilot lose context.
-        resumeText: state.resumeText,
-        resumeSkills: state.resumeSkills,
         savedJobs: state.savedJobs,
         appliedJobIds: state.appliedJobIds,
         appliedJobs: state.appliedJobs,

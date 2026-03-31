@@ -11,7 +11,6 @@ export function ResumeOptimizer() {
   const setResumeText = useJobStore((s) => s.setResumeText);
   const setResumeSkills = useJobStore((s) => s.setResumeSkills);
   const resumeText = useJobStore((s) => s.resumeText);
-  const loadResumeFromSupabase = useJobStore((s) => s.loadResumeFromSupabase);
   const [tab, setTab] = useState<"optimize" | "why">("optimize");
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -24,6 +23,7 @@ export function ResumeOptimizer() {
   const [parsedSummary, setParsedSummary] = useState("");
   const [parsedExperience, setParsedExperience] = useState("");
   const [parsedSkills, setParsedSkills] = useState("");
+  const [showResumePreview, setShowResumePreview] = useState(false);
 
   const card = {
     background: R.card,
@@ -35,17 +35,17 @@ export function ResumeOptimizer() {
   const panelHairline = `0.5px solid ${R.border}`;
 
   useEffect(() => {
-    if (user?.id) void loadResumeFromSupabase(user.id);
-  }, [user?.id, loadResumeFromSupabase]);
-
-  useEffect(() => {
-    // If we have resume text (persisted / loaded) but no parsed sections, show a stable preview.
-    if (!resumeText?.trim()) return;
-    if (parsedSummary || parsedExperience || parsedSkills) return;
-    setParsedSummary("Resume text loaded. Re-upload to re-run full parsing for structured sections.");
-    setParsedSkills("—");
-    setParsedExperience(sanitizeResumeText(resumeText).slice(0, 1200));
-  }, [resumeText, parsedSummary, parsedExperience, parsedSkills]);
+    // Privacy: don't auto-render resume contents on page load.
+    // User must upload a file or explicitly choose to preview the stored resume.
+    setShowResumePreview(false);
+    setParsedSummary("");
+    setParsedExperience("");
+    setParsedSkills("");
+    setOptimized("");
+    setWhyText("");
+    setTailorError(null);
+    setJobDescription("");
+  }, [user?.id]);
 
   const resumeForApi = () => sanitizeResumeText((resumeText || "").trim());
 
@@ -201,6 +201,7 @@ export function ResumeOptimizer() {
       }
       if (!text) setResumeText("Resume uploaded.");
       alert("Resume uploaded successfully.");
+      setShowResumePreview(true);
     } catch (e: unknown) {
       alert(e instanceof Error ? e.message : "Upload failed.");
     } finally {
@@ -268,6 +269,31 @@ export function ResumeOptimizer() {
           >
             {uploading ? "Uploading…" : "Upload Resume"}
           </button>
+          {!!resumeText?.trim() && !showResumePreview && (
+            <button
+              type="button"
+              onClick={() => {
+                setShowResumePreview(true);
+                setParsedSummary("Using your saved resume text. Re-upload to re-run full parsing for structured sections.");
+                setParsedSkills("—");
+                setParsedExperience(sanitizeResumeText(resumeText).slice(0, 1200));
+              }}
+              style={{
+                marginTop: 10,
+                marginLeft: 10,
+                background: "transparent",
+                color: R.primary,
+                border: `0.5px solid ${R.primary}`,
+                borderRadius: 8,
+                padding: "8px 14px",
+                fontSize: 12,
+                fontWeight: 500,
+                cursor: "pointer",
+              }}
+            >
+              Preview saved resume
+            </button>
+          )}
         </div>
 
         <div className="recrux-resume-grid">
@@ -275,28 +301,36 @@ export function ResumeOptimizer() {
             <h2 style={{ fontSize: 13, fontWeight: 500, color: R.darkest, marginBottom: 12 }}>
               Parsed sections
             </h2>
-            <div style={{ marginBottom: 12 }}>
-              <p style={{ fontSize: 11, fontWeight: 500, color: R.primary }}>Summary</p>
-              <p style={{ fontSize: 11, color: R.deep, marginTop: 4 }}>{parsedSummary}</p>
-            </div>
-            <div style={{ marginBottom: 12 }}>
-              <p style={{ fontSize: 11, fontWeight: 500, color: R.primary }}>Experience</p>
-              <pre
-                style={{
-                  fontSize: 11,
-                  color: R.deep,
-                  marginTop: 4,
-                  whiteSpace: "pre-wrap",
-                  fontFamily: "inherit",
-                }}
-              >
-                {parsedExperience}
-              </pre>
-            </div>
-            <div>
-              <p style={{ fontSize: 11, fontWeight: 500, color: R.primary }}>Skills</p>
-              <p style={{ fontSize: 11, color: R.deep, marginTop: 4 }}>{parsedSkills}</p>
-            </div>
+            {!showResumePreview ? (
+              <p style={{ fontSize: 11, color: R.deep, lineHeight: 1.5 }}>
+                Upload a resume (or click “Preview saved resume”) to show parsed sections here.
+              </p>
+            ) : (
+              <>
+                <div style={{ marginBottom: 12 }}>
+                  <p style={{ fontSize: 11, fontWeight: 500, color: R.primary }}>Summary</p>
+                  <p style={{ fontSize: 11, color: R.deep, marginTop: 4 }}>{parsedSummary}</p>
+                </div>
+                <div style={{ marginBottom: 12 }}>
+                  <p style={{ fontSize: 11, fontWeight: 500, color: R.primary }}>Experience</p>
+                  <pre
+                    style={{
+                      fontSize: 11,
+                      color: R.deep,
+                      marginTop: 4,
+                      whiteSpace: "pre-wrap",
+                      fontFamily: "inherit",
+                    }}
+                  >
+                    {parsedExperience}
+                  </pre>
+                </div>
+                <div>
+                  <p style={{ fontSize: 11, fontWeight: 500, color: R.primary }}>Skills</p>
+                  <p style={{ fontSize: 11, color: R.deep, marginTop: 4 }}>{parsedSkills}</p>
+                </div>
+              </>
+            )}
           </div>
 
           <div style={card}>

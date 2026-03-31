@@ -149,16 +149,17 @@ export function SignUp() {
     }
   };
 
-  const handleGitHubSignIn = async () => {
+  const handleLinkedInSignIn = async () => {
     setError("");
     const { error: oauthError } = await supabase.auth.signInWithOAuth({
-      provider: "github",
+      // Supabase uses LinkedIn OIDC provider key.
+      provider: "linkedin_oidc",
       options: {
         redirectTo: `${window.location.origin}/auth/callback`,
       },
     });
     if (oauthError) {
-      setError(oauthError.message || "GitHub sign-in failed. Try again or use email.");
+      setError(oauthError.message || "LinkedIn sign-in failed. Try again or use email.");
       setShakeKey((k) => k + 1);
     }
   };
@@ -178,9 +179,9 @@ export function SignUp() {
             onClick={handleGoogleSignIn}
           />
           <SocialButton
-            icon={<span className="flex h-4 w-4 items-center justify-center rounded text-[10px] font-medium text-white bg-slate-800">GH</span>}
-            label="Continue with GitHub"
-            onClick={handleGitHubSignIn}
+            icon={<span className="flex h-4 w-4 items-center justify-center rounded text-[10px] font-bold text-white bg-[#0A66C2]">in</span>}
+            label="Continue with LinkedIn"
+            onClick={handleLinkedInSignIn}
           />
         </div>
         <div className="flex items-center gap-2 text-xs text-js-brand-muted">

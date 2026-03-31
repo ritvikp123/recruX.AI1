@@ -1,11 +1,12 @@
-import { useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useEffect, useMemo, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Send } from "lucide-react";
 import { useJobStore } from "../store/useJobStore";
 import { mapJobToRecruxCard } from "../recrux/mapJobToCard";
 import { RecruxJobCard } from "../components/recrux/RecruxJobCard";
 import { RecruxEmptyState } from "../components/recrux/RecruxEmptyState";
 import { RecruxListPageShell } from "../components/recrux/RecruxListPageShell";
+import { ApplyConfirmModal } from "../components/ApplyConfirmModal";
 import type { Job } from "../types/job";
 
 function stubJob(id: string): Job {
@@ -20,6 +21,7 @@ function stubJob(id: string): Job {
 
 export function AppliedJobs() {
   const navigate = useNavigate();
+  const location = useLocation();
   const appliedJobIds = useJobStore((s) => s.appliedJobIds);
   const appliedJobs = useJobStore((s) => s.appliedJobs);
   const savedJobs = useJobStore((s) => s.savedJobs);
@@ -27,7 +29,22 @@ export function AppliedJobs() {
   const jobs = useJobStore((s) => s.jobs);
   const toggleSaveJob = useJobStore((s) => s.toggleSaveJob);
   const recordApplication = useJobStore((s) => s.recordApplication);
+  const pruneMockApplications = useJobStore((s) => s.pruneMockApplications);
+  const [applyConfirmJob, setApplyConfirmJob] = useState<Job | null>(null);
   const savedIds = useMemo(() => new Set(savedJobs.map((j) => j.id)), [savedJobs]);
+
+  useEffect(() => {
+    pruneMockApplications();
+  }, [pruneMockApplications]);
+
+  useEffect(() => {
+    const newlyAppliedJob = (location.state as { newlyAppliedJob?: Job } | null)?.newlyAppliedJob;
+    if (newlyAppliedJob?.id) {
+      recordApplication(newlyAppliedJob);
+      // Clear state so refresh/back doesn't re-add.
+      navigate("/applied", { replace: true });
+    }
+  }, [location.state, navigate, recordApplication]);
 
   const resolved = useMemo(() => {
     return appliedJobIds.map((id) => {
@@ -70,14 +87,24 @@ export function AppliedJobs() {
               saved={savedIds.has(job.id)}
               onToggleSave={() => toggleSaveJob(job)}
               onApply={(url) => {
-                recordApplication(job);
                 if (url) window.open(url, "_blank", "noopener");
+                setApplyConfirmJob(job);
               }}
               onOptimize={() => navigate("/resume")}
             />
           ))}
         </div>
       )}
+
+      <ApplyConfirmModal
+        open={!!applyConfirmJob}
+        onNo={() => setApplyConfirmJob(null)}
+        onYes={() => {
+          if (!applyConfirmJob) return;
+          recordApplication(applyConfirmJob);
+          setApplyConfirmJob(null);
+        }}
+      />
     </RecruxListPageShell>
   );
 }

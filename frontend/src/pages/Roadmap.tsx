@@ -1,7 +1,9 @@
 import type { ReactNode } from "react";
-import { useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { Check, Circle, Sparkles } from "lucide-react";
 import { R } from "../recrux/theme";
+import { useAuth } from "../context/AuthContext";
+import { supabase } from "../lib/supabase";
 
 const hairline = `0.5px solid ${R.border}`;
 
@@ -34,6 +36,21 @@ const TIMEFRAME_OPTIONS: { value: TimeframeOption; label: string }[] = [
   { value: "18 months", label: "18 months" },
   { value: "24 months", label: "24 months" },
 ];
+
+function matchRoleOption(raw: string | undefined | null): RoleOption | null {
+  if (!raw?.trim()) return null;
+  const t = raw.trim();
+  const exact = ROLE_OPTIONS.find((o) => o.value === t);
+  if (exact) return exact.value;
+  const lower = t.toLowerCase();
+  const byIncludes = ROLE_OPTIONS.find(
+    (o) =>
+      lower.includes(o.value.toLowerCase()) ||
+      o.value.toLowerCase().includes(lower) ||
+      lower.replace(/\s+/g, " ") === o.value.toLowerCase()
+  );
+  return byIncludes?.value ?? null;
+}
 
 function buildRoadmap(role: RoleOption, timeframe: TimeframeOption): {
   shipped: Item[];
@@ -176,7 +193,7 @@ function Column({
       <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
         {items.map((item, i) => (
           <li
-            key={item.title}
+            key={`${item.title}-${i}`}
             style={{
               padding: "14px 18px",
               borderTop: i === 0 ? undefined : hairline,
@@ -676,6 +693,9 @@ function RoadmapDiagram({
   role: RoleOption;
   timeframe: TimeframeOption;
 }) {
+  const markerUid = useId().replace(/[^a-zA-Z0-9_-]/g, "_");
+  const arrowMarkerId = `${markerUid}_roadmapArrow`;
+
   const normalized: DiagramPhase[] = phases.map((p, idx) => ({ ...p, phaseIndex: idx }));
   const phaseTitles = normalized.map((p) => {
     const parts = p.title.split("·").map((x) => x.trim());
@@ -706,13 +726,31 @@ function RoadmapDiagram({
         style={{ position: "absolute", inset: 0, width: "100%", height: 250, pointerEvents: "none", zIndex: 0 }}
       >
         <defs>
-          <marker id="roadmapArrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+          <marker id={arrowMarkerId} markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
             <path d="M0,0 L8,3 L0,6 Z" fill={R.primary} />
           </marker>
         </defs>
-        <path d="M 160 62 C 245 24, 255 24, 340 62" fill="none" stroke={R.primary} strokeWidth="2" markerEnd="url(#roadmapArrow)" />
-        <path d="M 410 62 C 495 24, 505 24, 590 62" fill="none" stroke={R.primary} strokeWidth="2" markerEnd="url(#roadmapArrow)" />
-        <path d="M 660 62 C 745 24, 755 24, 840 62" fill="none" stroke={R.primary} strokeWidth="2" markerEnd="url(#roadmapArrow)" />
+        <path
+          d="M 160 62 C 245 24, 255 24, 340 62"
+          fill="none"
+          stroke={R.primary}
+          strokeWidth="2"
+          markerEnd={`url(#${arrowMarkerId})`}
+        />
+        <path
+          d="M 410 62 C 495 24, 505 24, 590 62"
+          fill="none"
+          stroke={R.primary}
+          strokeWidth="2"
+          markerEnd={`url(#${arrowMarkerId})`}
+        />
+        <path
+          d="M 660 62 C 745 24, 755 24, 840 62"
+          fill="none"
+          stroke={R.primary}
+          strokeWidth="2"
+          markerEnd={`url(#${arrowMarkerId})`}
+        />
 
         <path d="M 160 120 C 160 156, 160 156, 160 188" fill="none" stroke={R.border} strokeWidth="1.2" strokeDasharray="4 5" />
         <path d="M 410 120 C 410 156, 410 156, 410 188" fill="none" stroke={R.border} strokeWidth="1.2" strokeDasharray="4 5" />
@@ -808,12 +846,49 @@ function RoadmapDiagram({
   );
 }
 
+const ROADMAP_ROLE_SEED_KEY = "recrux-roadmap-role-seeded";
+
 export function Roadmap() {
+  const { user } = useAuth();
+
   const [role, setRole] = useState<RoleOption>("Software Engineer");
   const [timeframe, setTimeframe] = useState<TimeframeOption>("6 months");
 
   const roadmap = useMemo(() => buildRoadmap(role, timeframe), [role, timeframe]);
   const phases = useMemo(() => buildPhasePlan(role, timeframe), [role, timeframe]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        const seedKey = `${ROADMAP_ROLE_SEED_KEY}:${user.id}`;
+        if (typeof sessionStorage !== "undefined" && sessionStorage.getItem(seedKey)) return;
+
+        const [prefsRes, profileRes] = await Promise.all([
+          supabase.from("user_preferences").select("roles").eq("user_id", user.id).maybeSingle(),
+          supabase.from("profiles").select("target_field").eq("id", user.id).maybeSingle(),
+        ]);
+        if (cancelled) return;
+
+        const roles = Array.isArray(prefsRes.data?.roles) ? (prefsRes.data!.roles as string[]) : [];
+        const fromPrefs = matchRoleOption(roles[0]);
+        const fromProfile = matchRoleOption(profileRes.data?.target_field ?? null);
+        const matched = fromPrefs ?? fromProfile;
+        if (matched) {
+          setRole(matched);
+          if (typeof sessionStorage !== "undefined") sessionStorage.setItem(seedKey, "1");
+        }
+      } catch {
+        /* keep defaults */
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
 
   return (
     <div
@@ -906,7 +981,37 @@ export function Roadmap() {
         </div>
       </div>
 
+      <section style={{ marginTop: 8, marginBottom: 28 }}>
+        <h2
+          className="recrux-heading"
+          style={{ fontSize: 17, fontWeight: 700, color: R.darkest, margin: "0 0 6px", textAlign: "center" }}
+        >
+          Focus board
+        </h2>
+        <p style={{ fontSize: 13, color: R.body, margin: "0 0 18px", lineHeight: 1.5, textAlign: "center", maxWidth: 560, marginLeft: "auto", marginRight: "auto" }}>
+          Concrete moves for this role and horizon — check items off as you go, then dive into the phased plan below.
+        </p>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+            gap: 16,
+            alignItems: "stretch",
+          }}
+        >
+          <Column label="Done" tone="done" icon={<Check size={18} strokeWidth={2.5} aria-hidden />} items={roadmap.shipped} />
+          <Column label="In progress" tone="active" icon={<Circle size={18} strokeWidth={2.5} aria-hidden />} items={roadmap.inProgress} />
+          <Column label="Next up" tone="soon" icon={<Sparkles size={18} strokeWidth={2.5} aria-hidden />} items={roadmap.planned} />
+        </div>
+      </section>
+
       <div style={{ marginTop: 18 }}>
+        <h2
+          className="recrux-heading"
+          style={{ fontSize: 17, fontWeight: 700, color: R.darkest, margin: "0 0 14px", textAlign: "center" }}
+        >
+          Phased plan
+        </h2>
         <div style={{ overflowX: "auto", paddingBottom: 8 }}>
           <div style={{ minWidth: 1040 }}>
             <RoadmapDiagram phases={phases} role={role} timeframe={timeframe} />

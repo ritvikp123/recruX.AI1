@@ -47,14 +47,17 @@ export function RecruxMatchBreakdown({
               borderRadius: 2,
               overflow: "hidden",
               width: "100%",
+              minWidth: 0,
             }}
           >
             <div
               style={{
                 height: "100%",
                 width: `${item.pct}%`,
+                maxWidth: "100%",
                 background: R.primary,
                 borderRadius: 2,
+                transition: "none",
               }}
             />
           </div>

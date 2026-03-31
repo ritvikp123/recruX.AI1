@@ -1,8 +1,9 @@
 import { supabase } from "../lib/supabase";
-import { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronUp, Sparkles } from "lucide-react";
 import { useJobStore } from "../store/useJobStore";
 import { R } from "../recrux/theme";
+import { sanitizeResumeText } from "../lib/resumeSanitize";
 
 type ChatMsg = { role: "user" | "assistant"; content: string };
 
@@ -115,7 +116,7 @@ export function DashboardAIBottomChat() {
     setMessages((m) => [...m, { role: "user", content: t }]);
 
     try {
-      const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8001";
+      const API_URL = ((import.meta as any).env?.VITE_API_URL as string | undefined) || "http://localhost:8001";
       const headers: Record<string, string> = { "Content-Type": "application/json" };
       const {
         data: { session },
@@ -128,7 +129,7 @@ export function DashboardAIBottomChat() {
         headers,
         body: JSON.stringify({
           message: t,
-          user_context: resumeText || "",
+          user_context: sanitizeResumeText(resumeText || ""),
         }),
       });
       if (!res.ok) throw new Error("Chat request failed");
@@ -138,7 +139,7 @@ export function DashboardAIBottomChat() {
       setMessages((m) => [...m, { role: "assistant", content: reply }]);
     } catch (err) {
       const useMock =
-        typeof import.meta !== "undefined" && import.meta.env?.DEV === true;
+        typeof import.meta !== "undefined" && (import.meta as any).env?.DEV === true;
       const fallback = useMock
         ? buildMockAssistantReply(t, resumeText)
         : "The assistant is unavailable right now. Check that the API is running and VITE_API_URL is correct.";

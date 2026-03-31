@@ -1,4 +1,5 @@
-import { NavLink, Link, useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { NavLink, Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Search } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { R } from "../recrux/theme";
@@ -25,6 +26,23 @@ const hairline = `0.5px solid ${R.border}`;
 export function Navbar() {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const urlQ = searchParams.get("q")?.trim() ?? "";
+  const [navQuery, setNavQuery] = useState("");
+
+  useEffect(() => {
+    if (urlQ) setNavQuery(urlQ);
+  }, [urlQ]);
+
+  const runNavSearch = () => {
+    const q = navQuery.trim();
+    if (!q) {
+      navigate("/jobs");
+      return;
+    }
+    navigate(`/jobs?q=${encodeURIComponent(q)}`);
+  };
+
   const display =
     (user?.user_metadata?.full_name as string) ||
     user?.email?.split("@")[0] ||
@@ -102,7 +120,17 @@ export function Navbar() {
           style={{ position: "absolute", left: 12, pointerEvents: "none" }}
         />
         <input
+          value={navQuery}
+          onChange={(e) => setNavQuery(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              runNavSearch();
+            }
+          }}
           placeholder="Search jobs..."
+          aria-label="Search jobs"
+          title="Press Enter to search on the Jobs page"
           style={{
             background: R.light,
             border: hairline,
@@ -114,8 +142,6 @@ export function Navbar() {
             maxWidth: "100%",
             outline: "none",
           }}
-          readOnly
-          title="Coming soon"
         />
       </div>
 

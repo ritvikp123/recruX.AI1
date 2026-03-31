@@ -17,6 +17,10 @@ def get_jsearch_config():
         "X-RapidAPI-Host": "jsearch.p.rapidapi.com"
     }
 
+def _truthy_env(name: str, default: str = "false") -> bool:
+    v = os.getenv(name, default)
+    return str(v).strip().lower() in ("1", "true", "yes", "y", "on")
+
 JSEARCH_URL = "https://jsearch.p.rapidapi.com/search"
 
 # Arbeitnow is a completely free job board API that requires no API key
@@ -28,7 +32,7 @@ async def search_jobs(skills: List[str], role_name: str) -> List[JobListing]:
     Fetches real-world jobs. Priority order:
     1. JSearch (RapidAPI) if subscribed
     2. Arbeitnow free API (no key needed)
-    3. Dummy fallback
+    3. Dummy fallback (only if explicitly enabled)
     """
     # Try JSearch first if we have a key
     rapidapi_key, headers = get_jsearch_config()
@@ -42,9 +46,15 @@ async def search_jobs(skills: List[str], role_name: str) -> List[JobListing]:
     if jobs:
         return jobs
 
-    # Final fallback: dummy data
-    print("All real APIs failed. Falling back to dummy jobs.")
-    return _load_dummy_jobs()
+    # Final fallback: dummy data (guarded)
+    # Local setup should not silently show fake jobs in prod-like runs.
+    allow_dummy = _truthy_env("ALLOW_DUMMY_JOBS", "false")
+    if allow_dummy:
+        print("All real APIs failed. Falling back to dummy jobs because ALLOW_DUMMY_JOBS=true.")
+        return _load_dummy_jobs()
+
+    print("All real APIs failed. Returning 0 jobs (dummy fallback disabled).")
+    return []
 
 
 async def _search_jsearch(skills: List[str], role_name: str, headers: dict) -> List[JobListing]:

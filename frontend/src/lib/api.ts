@@ -7,7 +7,7 @@
 import { supabase } from "./supabase";
 
 const BASE_URL =
-  import.meta.env.VITE_API_URL || "http://localhost:8001";
+  ((import.meta as any).env?.VITE_API_URL as string | undefined) || "http://localhost:8001";
 const API_PREFIX = `${BASE_URL}/api`;
 
 /** Authorization + optional Content-Type for JSON requests */
@@ -82,6 +82,11 @@ export interface ResumeParseOutput {
   raw_text?: string;
 }
 
+export interface ResumeExtractOutput {
+  raw_text: string;
+  skills: string[];
+}
+
 export async function parseResume(file: File): Promise<ResumeParseOutput> {
   const form = new FormData();
   form.append("file", file);
@@ -92,6 +97,18 @@ export async function parseResume(file: File): Promise<ResumeParseOutput> {
     body: form,
   });
   return handleResponse<ResumeParseOutput>(res);
+}
+
+export async function extractResumeFast(file: File): Promise<ResumeExtractOutput> {
+  const form = new FormData();
+  form.append("file", file);
+  const headers = await getAuthHeaders(true);
+  const res = await fetch(`${API_PREFIX}/resume/extract`, {
+    method: "POST",
+    headers,
+    body: form,
+  });
+  return handleResponse<ResumeExtractOutput>(res);
 }
 
 // --- Jobs ---

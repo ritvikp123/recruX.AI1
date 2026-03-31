@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import React, { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   ArrowUpDown,
@@ -21,6 +21,7 @@ import { RecruxMatchBreakdown } from "../components/recrux/RecruxMatchBreakdown"
 import { RecruxJobCardSkeletonList } from "../components/recrux/RecruxJobCardSkeleton";
 import { RecruxEmptyState } from "../components/recrux/RecruxEmptyState";
 import { DashboardAIBottomChat } from "../components/DashboardAIBottomChat";
+import { ApplyConfirmModal } from "../components/ApplyConfirmModal";
 import type { Job } from "../types/job";
 
 type MatchTab = "high" | "saved" | "recent";
@@ -58,13 +59,39 @@ export function Dashboard() {
   const appliedJobIds = useJobStore((s) => s.appliedJobIds);
   const dashboardLoading = useJobStore((s) => s.dashboardLoading);
   const error = useJobStore((s) => s.error);
+  const resumeText = useJobStore((s) => s.resumeText);
+  const resumeSkills = useJobStore((s) => s.resumeSkills);
   const fetchDashboardPreview = useJobStore((s) => s.fetchDashboardPreview);
   const setFilters = useJobStore((s) => s.setFilters);
   const loadResumeFromSupabase = useJobStore((s) => s.loadResumeFromSupabase);
-  const resumeText = useJobStore((s) => s.resumeText);
   const toggleSaveJob = useJobStore((s) => s.toggleSaveJob);
   const recordApplication = useJobStore((s) => s.recordApplication);
   const recordRecentView = useJobStore((s) => s.recordRecentView);
+  const [applyConfirmJob, setApplyConfirmJob] = useState<Job | null>(null);
+
+  const resumeBreakdown = useMemo(() => {
+    const t = (resumeText || "").trim();
+    const skillsCount = Array.isArray(resumeSkills) ? resumeSkills.length : 0;
+    if (!t) {
+      return [
+        { label: "Skills", pct: 0 },
+        { label: "Experience", pct: 0 },
+        { label: "Keywords", pct: 0 },
+        { label: "Education", pct: 0 },
+      ];
+    }
+    // Deterministic “resume completeness” bars (not a job match score).
+    const skillsPct = Math.min(100, 40 + skillsCount * 6);
+    const expPct = Math.min(100, Math.round(25 + Math.min(75, t.length / 120)));
+    const kwPct = Math.min(100, 30 + Math.min(70, skillsCount * 5));
+    const eduPct = /education|university|college|b\.s\.|m\.s\.|bachelor|master/i.test(t) ? 90 : 55;
+    return [
+      { label: "Skills", pct: skillsPct },
+      { label: "Experience", pct: expPct },
+      { label: "Keywords", pct: kwPct },
+      { label: "Education", pct: eduPct },
+    ];
+  }, [resumeText, resumeSkills]);
 
   useEffect(() => {
     if (user?.id) void loadResumeFromSupabase(user.id);
@@ -259,8 +286,8 @@ export function Dashboard() {
               saved={savedIds.has(job.id)}
               onToggleSave={() => toggleSaveJob(job)}
               onApply={(url) => {
-                recordApplication(job);
                 if (url) window.open(url, "_blank", "noopener");
+                setApplyConfirmJob(job);
               }}
               onOptimize={() => navigate("/resume")}
             />
@@ -448,11 +475,23 @@ export function Dashboard() {
             gap: 20,
           }}
         >
-          <RecruxMatchBreakdown />
+          <RecruxMatchBreakdown breakdown={resumeBreakdown} />
         </div>
       </aside>
 
       <DashboardAIBottomChat />
+
+      <ApplyConfirmModal
+        open={!!applyConfirmJob}
+        onNo={() => setApplyConfirmJob(null)}
+        onYes={() => {
+          if (!applyConfirmJob) return;
+          recordApplication(applyConfirmJob);
+          const payload = applyConfirmJob;
+          setApplyConfirmJob(null);
+          navigate("/applied", { state: { newlyAppliedJob: payload } });
+        }}
+      />
     </div>
   );
 }

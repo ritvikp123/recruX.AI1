@@ -134,10 +134,10 @@ Canonical backlog / risk list. Items stay open until explicitly removed.
 
 ### Jobs & listings
 
-- **A2** — `useJobStore` still invents mock jobs if JSearch fails (not only when key is missing).
-- **A3** — `jsearch.ts` errors can trigger that same failure → mock path.
-- **A4** — Backend `job_search_agent` may fall back to `dummy_jobs.json` if you rely on server job search in prod.
 - **A1 / JSearch key** — real jobs load when configured (working).
+- **A2** — *How solved:* Frontend (`useJobStore`) only uses **demo jobs** in **dev** when the JSearch key is **missing**; it no longer silently invents mock jobs on other API errors (quota/network/etc). Non-key failures now surface an error and return **0 jobs** instead of showing fake data.
+- **A3** — *How solved:* `jsearch.ts` now throws clearer request errors (includes HTTP status + response details when available), and the store no longer routes those errors into mock listings except for the explicit “missing key in dev” case.
+- **A4** — *How solved:* Backend `job_search_agent` dummy fallback is now **disabled by default**; it only loads `dummy_jobs.json` when `ALLOW_DUMMY_JOBS=true`. Otherwise, if both JSearch + Arbeitnow fail, it returns **[]** (0 jobs) rather than silently serving dummy data.
 
 ### Match scores
 

@@ -395,6 +395,13 @@ async def resume_optimize_for_job(body: ResumeTailorRequest):
     except HTTPException:
         raise
     except Exception as e:
+        msg = str(e)
+        if "All connection attempts failed" in msg or "ConnectError" in msg:
+            raise HTTPException(
+                status_code=503,
+                detail="Ollama is not reachable. Start Ollama (default: http://localhost:11434) and ensure the model is pulled, then retry.",
+            )
+    except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -412,6 +419,13 @@ async def resume_gap_why(body: ResumeTailorRequest):
         return ResumeTailorTextResponse(text=text)
     except HTTPException:
         raise
+    except Exception as e:
+        msg = str(e)
+        if "All connection attempts failed" in msg or "ConnectError" in msg:
+            raise HTTPException(
+                status_code=503,
+                detail="Ollama is not reachable. Start Ollama (default: http://localhost:11434) and ensure the model is pulled, then retry.",
+            )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

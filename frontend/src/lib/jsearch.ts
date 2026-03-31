@@ -3,6 +3,9 @@ import type { Job } from "../types/job";
 
 const BASE = "https://jsearch.p.rapidapi.com";
 
+/** Max jobs per search — limits payload scoring and pairs with single-page fetch to save API credits. */
+export const JSEARCH_MAX_RESULTS_PER_SEARCH = 10;
+
 function headers(): Record<string, string> {
   const apiKey = import.meta.env.VITE_RAPIDAPI_KEY || import.meta.env.VITE_JSEARCH_API_KEY;
   if (!apiKey) {
@@ -12,6 +15,23 @@ function headers(): Record<string, string> {
     "X-RapidAPI-Key": apiKey as string,
     "X-RapidAPI-Host": "jsearch.p.rapidapi.com",
   };
+}
+
+function formatAxiosError(err: unknown): string {
+  if (!axios.isAxiosError(err)) return String(err ?? "Unknown error");
+  const status = err.response?.status;
+  const statusText = err.response?.statusText;
+  let detail = "";
+  try {
+    const data = err.response?.data as unknown;
+    if (typeof data === "string") detail = data;
+    else if (data && typeof data === "object") detail = JSON.stringify(data);
+  } catch {
+    /* ignore */
+  }
+  const head = status ? `JSearch request failed (${status}${statusText ? ` ${statusText}` : ""})` : "JSearch request failed";
+  const bits = [head, err.message, detail].map((s) => (s || "").trim()).filter(Boolean);
+  return bits.join(" — ");
 }
 
 export function normalizeJSearchJob(item: Record<string, unknown>): Job {
@@ -45,17 +65,21 @@ export async function searchJSearchJobs(params: {
   employmentType?: string;
 } = {}): Promise<Job[]> {
   const { query = "Software Engineer", page = 1, remoteOnly = false, employmentType = "" } = params;
-  const { data } = await axios.get<{ data: Record<string, unknown>[] }>(`${BASE}/search`, {
-    headers: headers(),
-    params: {
-      query,
-      page,
-      num_pages: 1,
-      date_posted: "month",
-      remote_jobs_only: remoteOnly,
-      employment_type: employmentType || undefined,
-    },
-  });
-  const list = data?.data || [];
-  return list.map(normalizeJSearchJob);
+  try {
+    const { data } = await axios.get<{ data: Record<string, unknown>[] }>(`${BASE}/search`, {
+      headers: headers(),
+      params: {
+        query,
+        page,
+        num_pages: 1,
+        date_posted: "month",
+        remote_jobs_only: remoteOnly,
+        employment_type: employmentType || undefined,
+      },
+    });
+    const raw = data?.data || [];
+    return raw.map(normalizeJSearchJob).slice(0, JSEARCH_MAX_RESULTS_PER_SEARCH);
+  } catch (err: unknown) {
+    throw new Error(formatAxiosError(err));
+  }
 }

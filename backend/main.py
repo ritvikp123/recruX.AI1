@@ -15,15 +15,20 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# CORS for frontend (React + Vite on port 5173)
+# CORS: dev origins + optional CORS_ORIGINS (comma-separated) for production, e.g.
+# CORS_ORIGINS=https://www.yoursite.com,https://yoursite.com
+_default_origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:5181",
+    "http://127.0.0.1:5181",
+]
+_extra = os.getenv("CORS_ORIGINS", "").strip()
+_origins = _default_origins + [o.strip() for o in _extra.split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://localhost:5181",
-        "http://127.0.0.1:5181",
-    ],
+    allow_origins=_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

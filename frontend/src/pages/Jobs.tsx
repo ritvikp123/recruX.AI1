@@ -1,16 +1,20 @@
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { scoreJob } from "../lib/api";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { sanitizeResumeText } from "../lib/resumeSanitize";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Filter, SlidersHorizontal, X } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { useJobStore } from "../store/useJobStore";
 import { supabase } from "../lib/supabase";
-import { computeMatchScore } from "../lib/matchScore";
+import { JSEARCH_MAX_RESULTS_PER_SEARCH } from "../lib/jsearch";
+import { computeMatchBreakdown, computeMatchScore, computeSkillGapsFromJob } from "../lib/matchScore";
 import { mapJobToRecruxCard } from "../recrux/mapJobToCard";
 import { R } from "../recrux/theme";
 import { RecruxJobCard } from "../components/recrux/RecruxJobCard";
 import { RecruxMatchBreakdown } from "../components/recrux/RecruxMatchBreakdown";
 import { RecruxJobCardSkeletonList } from "../components/recrux/RecruxJobCardSkeleton";
 import { RecruxEmptyState } from "../components/recrux/RecruxEmptyState";
+import { ApplyConfirmModal } from "../components/ApplyConfirmModal";
 import type { Job } from "../types/job";
 
 const hairline = `0.5px solid ${R.border}`;
@@ -55,14 +59,15 @@ function buildJobDescriptionForScore(job: Job): string {
 }
 
 export function Jobs() {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const qParam = searchParams.get("q")?.trim() ?? "";
   const [salaryMin, setSalaryMin] = useState("");
   const [minMatch, setMinMatch] = useState(0);
   const [companyFilter, setCompanyFilter] = useState("");
   const [sortBy, setSortBy] = useState<SortKey>("match-desc");
-  const [hideApplied, setHideApplied] = useState(false);
   const [workMode, setWorkMode] = useState<WorkMode>("ANY");
   const [prefsLoaded, setPrefsLoaded] = useState(false);
-  const [apiMatchScore, setApiMatchScore] = useState<number | null>(null);
   const [apiMatchReasoning, setApiMatchReasoning] = useState<string | null>(null);
   const [scoreLoading, setScoreLoading] = useState(false);
   const [scoreError, setScoreError] = useState<string | null>(null);
@@ -78,14 +83,27 @@ export function Jobs() {
   const setSelectedJob = useJobStore((s) => s.setSelectedJob);
   const loadResumeFromSupabase = useJobStore((s) => s.loadResumeFromSupabase);
   const resumeText = useJobStore((s) => s.resumeText);
+  const resumeSkills = useJobStore((s) => s.resumeSkills);
   const savedJobs = useJobStore((s) => s.savedJobs);
   const appliedJobIds = useJobStore((s) => s.appliedJobIds);
   const toggleSaveJob = useJobStore((s) => s.toggleSaveJob);
   const recordApplication = useJobStore((s) => s.recordApplication);
+  const [applyConfirmJob, setApplyConfirmJob] = useState<Job | null>(null);
+
+  const openApplyFlow = (job: Job, url?: string) => {
+    if (url) window.open(url, "_blank", "noopener");
+    setApplyConfirmJob(job);
+  };
 
   useEffect(() => {
     if (user?.id) void loadResumeFromSupabase(user.id);
   }, [user?.id, loadResumeFromSupabase]);
+
+  useEffect(() => {
+    if (selectedJob && appliedJobIds.includes(selectedJob.id)) {
+      setSelectedJob(null);
+    }
+  }, [appliedJobIds, selectedJob, setSelectedJob]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -105,7 +123,8 @@ export function Jobs() {
         const employmentTypes = Array.isArray(prefs.employment_types) ? (prefs.employment_types as string[]) : [];
         const workLocation = Array.isArray(prefs.work_location) ? (prefs.work_location as string[]) : [];
 
-        const query = roles[0] || industries[0] || "Software Engineer";
+        const qNav = new URLSearchParams(window.location.search).get("q")?.trim() || "";
+        const query = qNav || roles[0] || industries[0] || "Software Engineer";
 
         const employmentType = (() => {
           if (employmentTypes.some((t) => t.includes("Full-Time"))) return "FULLTIME";
@@ -150,9 +169,17 @@ export function Jobs() {
     void fetchJobs(computeMatchScore);
   }, [fetchJobs, resumeText, prefsLoaded]);
 
+  /** Navbar search: `/jobs?q=...` when prefs already loaded (e.g. after visiting Applied). */
+  useEffect(() => {
+    if (!prefsLoaded || !qParam) return;
+    const current = useJobStore.getState().filters.query.trim();
+    if (current === qParam) return;
+    setFilters({ query: qParam });
+    void fetchJobs(computeMatchScore);
+  }, [prefsLoaded, qParam, setFilters, fetchJobs]);
+
   useEffect(() => {
     if (!selectedJob) {
-      setApiMatchScore(null);
       setApiMatchReasoning(null);
       setScoreError(null);
       setScoreLoading(false);
@@ -160,18 +187,17 @@ export function Jobs() {
     }
 
     const resume = resumeText?.trim() ?? "";
+    const resumeSanitized = sanitizeResumeText(resume);
     const jd = buildJobDescriptionForScore(selectedJob);
 
-    if (!resume) {
-      setApiMatchScore(null);
+    if (!resumeSanitized) {
       setApiMatchReasoning(null);
-      setScoreError("Add a resume (Resume page) to get an AI match score.");
+      setScoreError("Add a resume (Resume page) to get AI match notes below.");
       setScoreLoading(false);
       return;
     }
 
     if (!jd) {
-      setApiMatchScore(null);
       setApiMatchReasoning(null);
       setScoreError("This listing has no description to score against.");
       setScoreLoading(false);
@@ -182,23 +208,20 @@ export function Jobs() {
     setScoreLoading(true);
     setScoreError(null);
 
-    void scoreJob(resume, jd)
+    void scoreJob(resumeSanitized, jd)
       .then((data) => {
         if (cancelled) return;
         const first = data.scores[0];
         if (!first) {
-          setApiMatchScore(null);
           setApiMatchReasoning(null);
           setScoreError("No score returned.");
           return;
         }
-        setApiMatchScore(first.match_score);
         setApiMatchReasoning(first.reasoning ?? null);
       })
       .catch((err: unknown) => {
         if (cancelled) return;
         const msg = err instanceof Error ? err.message : String(err);
-        setApiMatchScore(null);
         setApiMatchReasoning(null);
         setScoreError(msg);
       })
@@ -213,6 +236,11 @@ export function Jobs() {
   const savedIds = new Set(savedJobs.map((j) => j.id));
   const appliedSet = useMemo(() => new Set(appliedJobIds), [appliedJobIds]);
 
+  const allLoadedAreApplied = useMemo(
+    () => jobs.length > 0 && jobs.every((j) => appliedSet.has(j.id)),
+    [jobs, appliedSet]
+  );
+
   const filtered = useMemo(() => {
     const qCompany = companyFilter.trim().toLowerCase();
     let list = jobs.filter((j) => {
@@ -226,7 +254,7 @@ export function Jobs() {
       }
       if (qCompany && !j.company?.toLowerCase().includes(qCompany)) return false;
       if (minMatch > 0 && (j.matchScore ?? 0) < minMatch) return false;
-      if (hideApplied && appliedSet.has(j.id)) return false;
+      if (appliedSet.has(j.id)) return false;
       return true;
     });
 
@@ -253,22 +281,19 @@ export function Jobs() {
     salaryMin,
     companyFilter,
     minMatch,
-    hideApplied,
     appliedSet,
     sortBy,
   ]);
 
-  const gapSkills = ["System design", "Kubernetes", "GraphQL"];
+  const gapSkills = useMemo(() => {
+    if (!selectedJob) return [];
+    return computeSkillGapsFromJob(selectedJob, resumeText, resumeSkills);
+  }, [selectedJob, resumeText, resumeSkills]);
 
-    const breakdownForJob = (j: Job) => {
-    const m = apiMatchScore ?? j.matchScore ?? 70;
-    return [
-      { label: "Skills", pct: Math.min(99, m + 5) },
-      { label: "Experience", pct: m },
-      { label: "Keywords", pct: Math.max(0, m - 8) },
-      { label: "Education", pct: 85 },
-    ];
-  };
+  const selectedMatchBreakdown = useMemo(() => {
+    if (!selectedJob) return [];
+    return computeMatchBreakdown(resumeText, resumeSkills, selectedJob);
+  }, [selectedJob, resumeText, resumeSkills]);
 
   const inputStyle = {
     border: hairline,
@@ -294,7 +319,6 @@ export function Jobs() {
     setCompanyFilter("");
     setMinMatch(0);
     setSortBy("match-desc");
-    setHideApplied(false);
     setWorkMode("ANY");
     setFilters({ query: filters.query, location: "", remoteOnly: false, employmentType: "" });
   };
@@ -303,7 +327,6 @@ export function Jobs() {
     minMatch > 0 ||
     !!companyFilter.trim() ||
     sortBy !== "match-desc" ||
-    hideApplied ||
     workMode !== "ANY" ||
     !!filters.location ||
     !!salaryMin ||
@@ -318,7 +341,25 @@ export function Jobs() {
               Jobs
             </h1>
             <p style={{ fontSize: 14, color: R.body, margin: "8px 0 0", maxWidth: 520, lineHeight: 1.5 }}>
-              Search live listings, then refine by match, company, and more — without leaving the list.
+              Search live listings, then refine by match, company, and more. Roles you mark applied disappear here — see them anytime on{" "}
+              <button
+                type="button"
+                onClick={() => navigate("/applied")}
+                style={{
+                  background: "none",
+                  border: "none",
+                  padding: 0,
+                  color: R.primary,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                  fontSize: "inherit",
+                  textDecoration: "underline",
+                }}
+              >
+                Applied
+              </button>
+              . Each search loads at most {JSEARCH_MAX_RESULTS_PER_SEARCH} listings (one API call) to protect your key quota.
             </p>
           </div>
           {jobs.length > 0 && (
@@ -379,53 +420,93 @@ export function Jobs() {
               <p style={{ margin: 0, fontSize: 12, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: R.deep }}>
                 Search
               </p>
-              <p style={{ margin: "2px 0 0", fontSize: 12, color: R.body }}>Hits the job API — use Refine below for instant list updates.</p>
+              <p style={{ margin: "2px 0 0", fontSize: 12, color: R.body }}>
+                One API request per run — up to {JSEARCH_MAX_RESULTS_PER_SEARCH} jobs. Refine below is instant (no extra calls).
+              </p>
             </div>
           </div>
-          <div style={{ padding: 16, display: "flex", flexWrap: "wrap", gap: 14, alignItems: "flex-end" }}>
-            <div style={{ flex: "1 1 200px", minWidth: 0 }}>
-              <label style={labelStyle}>Role / keywords</label>
-              <input
-                ref={queryInputRef}
-                value={filters.query}
-                onChange={(e) => setFilters({ query: e.target.value })}
-                style={inputStyle}
-              />
-            </div>
-            <div style={{ flex: "1 1 160px", minWidth: 0 }}>
-              <label style={labelStyle}>Location</label>
-              <input
-                value={filters.location}
-                onChange={(e) => setFilters({ location: e.target.value })}
-                placeholder="City or remote"
-                style={inputStyle}
-              />
-            </div>
-            <div style={{ flex: "1 1 140px", minWidth: 0 }}>
-              <label style={labelStyle}>Employment</label>
-              <select
-                value={filters.employmentType}
-                onChange={(e) => setFilters({ employmentType: e.target.value })}
-                style={{ ...inputStyle, cursor: "pointer" }}
+          <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 14 }}>
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: 12,
+                alignItems: "flex-end",
+              }}
+            >
+              <div style={{ flex: "1 1 min(100%, 320px)", minWidth: 0 }}>
+                <label style={labelStyle}>Role / keywords</label>
+                <input
+                  ref={queryInputRef}
+                  value={filters.query}
+                  onChange={(e) => setFilters({ query: e.target.value })}
+                  placeholder="e.g. Software Engineer, React"
+                  style={inputStyle}
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => void fetchJobs(computeMatchScore)}
+                style={{
+                  background: R.primary,
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: 10,
+                  padding: "12px 24px",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                  flex: "0 0 auto",
+                  whiteSpace: "nowrap",
+                }}
               >
-                {EMPLOYMENT_OPTIONS.map((o) => (
-                  <option key={o.value || "any"} value={o.value}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
+                Run search
+              </button>
             </div>
-            <div style={{ flex: "0 0 120px" }}>
-              <label style={labelStyle}>Min salary (K)</label>
-              <input
-                type="number"
-                min={0}
-                value={salaryMin}
-                onChange={(e) => setSalaryMin(e.target.value)}
-                style={inputStyle}
-              />
-            </div>
-              <div style={{ flex: "1 1 170px", minWidth: 0 }}>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+                gap: 12,
+                alignItems: "end",
+              }}
+            >
+              <div style={{ minWidth: 0 }}>
+                <label style={labelStyle}>Location</label>
+                <input
+                  value={filters.location}
+                  onChange={(e) => setFilters({ location: e.target.value })}
+                  placeholder="City or remote"
+                  style={inputStyle}
+                />
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <label style={labelStyle}>Employment</label>
+                <select
+                  value={filters.employmentType}
+                  onChange={(e) => setFilters({ employmentType: e.target.value })}
+                  style={{ ...inputStyle, cursor: "pointer" }}
+                >
+                  {EMPLOYMENT_OPTIONS.map((o) => (
+                    <option key={o.value || "any"} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <label style={labelStyle}>Min salary (K)</label>
+                <input
+                  type="number"
+                  min={0}
+                  value={salaryMin}
+                  onChange={(e) => setSalaryMin(e.target.value)}
+                  placeholder="Optional"
+                  style={inputStyle}
+                />
+              </div>
+              <div style={{ minWidth: 0 }}>
                 <label style={labelStyle}>Work mode</label>
                 <select
                   value={workMode}
@@ -443,23 +524,7 @@ export function Jobs() {
                   ))}
                 </select>
               </div>
-            <button
-              type="button"
-              onClick={() => void fetchJobs(computeMatchScore)}
-              style={{
-                background: R.primary,
-                color: "#fff",
-                border: "none",
-                borderRadius: 10,
-                padding: "12px 22px",
-                fontSize: 13,
-                fontWeight: 600,
-                cursor: "pointer",
-                fontFamily: "inherit",
-              }}
-            >
-              Run search
-            </button>
+            </div>
           </div>
         </div>
 
@@ -576,21 +641,6 @@ export function Jobs() {
                   <option value="company">Company (A–Z)</option>
                 </select>
               </div>
-              <label
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  fontSize: 13,
-                  fontWeight: 500,
-                  color: R.darkest,
-                  cursor: "pointer",
-                  paddingBottom: 10,
-                }}
-              >
-                <input type="checkbox" checked={hideApplied} onChange={(e) => setHideApplied(e.target.checked)} />
-                Hide already applied
-              </label>
             </div>
           </div>
         </div>
@@ -607,11 +657,17 @@ export function Jobs() {
             ctaLabel="Search your first job"
             onCtaClick={focusSearch}
           />
+        ) : filtered.length === 0 && allLoadedAreApplied ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: 16, alignItems: "center", padding: "24px 12px" }}>
+            <p style={{ fontSize: 14, color: R.body, margin: 0, textAlign: "center", maxWidth: 420, lineHeight: 1.55 }}>
+              You’ve applied to every role in this batch ({JSEARCH_MAX_RESULTS_PER_SEARCH} max per search). Run a new search or relax filters to find more.
+            </p>
+          </div>
         ) : filtered.length === 0 ? (
           <RecruxEmptyState
             variant="search"
             title="No roles match your filters"
-            description="Relax match threshold, company text, or hide-applied — or clear filters and run search again."
+            description="Relax match threshold or company filter — or clear filters and run search again."
             ctaLabel="Clear filters"
             onCtaClick={() => {
               clearAllFilters();
@@ -637,8 +693,7 @@ export function Jobs() {
                   saved={savedIds.has(job.id)}
                   onToggleSave={() => toggleSaveJob(job)}
                   onApply={(url) => {
-                    recordApplication(job);
-                    if (url) window.open(url, "_blank", "noopener");
+                    openApplyFlow(job, url);
                   }}
                   onOptimize={() => {}}
                   onWhy={() => setSelectedJob(job)}
@@ -702,31 +757,36 @@ export function Jobs() {
             </p>
           )}
           <div style={{ marginTop: 16 }}>
-            <RecruxMatchBreakdown breakdown={breakdownForJob(selectedJob)} />
+            <RecruxMatchBreakdown key={selectedJob.id} breakdown={selectedMatchBreakdown} />
           </div>
           <p style={{ fontSize: 11, fontWeight: 500, color: R.darkest, marginTop: 12 }}>Skill gaps</p>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
-            {gapSkills.map((s) => (
-              <span
-                key={s}
-                style={{
-                  fontSize: 10,
-                  padding: "3px 8px",
-                  borderRadius: 10,
-                  background: R.gapBg,
-                  color: R.gapText,
-                }}
-              >
-                {s}
+            {gapSkills.length === 0 ? (
+              <span style={{ fontSize: 10, color: R.deep, lineHeight: 1.4 }}>
+                No obvious gaps vs your resume for common tech terms in this posting.
               </span>
-            ))}
+            ) : (
+              gapSkills.map((s) => (
+                <span
+                  key={s}
+                  style={{
+                    fontSize: 10,
+                    padding: "3px 8px",
+                    borderRadius: 10,
+                    background: R.gapBg,
+                    color: R.gapText,
+                  }}
+                >
+                  {s}
+                </span>
+              ))
+            )}
           </div>
           <div style={{ display: "flex", gap: 8, marginTop: 16, flexWrap: "wrap" }}>
             <button
               type="button"
               onClick={() => {
-                recordApplication(selectedJob);
-                window.open(selectedJob.applyUrl || "#", "_blank");
+                openApplyFlow(selectedJob, selectedJob.applyUrl);
               }}
               style={{
                 fontSize: 11,
@@ -759,6 +819,19 @@ export function Jobs() {
           </div>
         </div>
       )}
+
+      <ApplyConfirmModal
+        open={!!applyConfirmJob}
+        onNo={() => setApplyConfirmJob(null)}
+        onYes={() => {
+          if (!applyConfirmJob) return;
+          recordApplication(applyConfirmJob);
+          const payload = applyConfirmJob;
+          setApplyConfirmJob(null);
+          // Show it immediately on the Applied page.
+          navigate("/applied", { state: { newlyAppliedJob: payload } });
+        }}
+      />
     </div>
   );
 }

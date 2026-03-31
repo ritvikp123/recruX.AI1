@@ -14,4 +14,6 @@ export interface Job {
   skills?: string[];
   postedAt?: string;
   matchScore?: number;
+  /** When the user marked the role applied (local or from Supabase `applied_at`) */
+  appliedAt?: string;
 }

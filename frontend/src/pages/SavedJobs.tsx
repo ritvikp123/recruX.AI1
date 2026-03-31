@@ -1,17 +1,20 @@
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Bookmark } from "lucide-react";
 import { useJobStore } from "../store/useJobStore";
 import { mapJobToRecruxCard } from "../recrux/mapJobToCard";
-import { R } from "../recrux/theme";
 import { RecruxJobCard } from "../components/recrux/RecruxJobCard";
 import { RecruxEmptyState } from "../components/recrux/RecruxEmptyState";
 import { RecruxListPageShell } from "../components/recrux/RecruxListPageShell";
+import { ApplyConfirmModal } from "../components/ApplyConfirmModal";
+import type { Job } from "../types/job";
 
 export function SavedJobs() {
   const navigate = useNavigate();
   const savedJobs = useJobStore((s) => s.savedJobs);
   const toggleSaveJob = useJobStore((s) => s.toggleSaveJob);
   const recordApplication = useJobStore((s) => s.recordApplication);
+  const [applyConfirmJob, setApplyConfirmJob] = useState<Job | null>(null);
 
   const count = savedJobs.length;
 
@@ -42,14 +45,26 @@ export function SavedJobs() {
               saved
               onToggleSave={() => toggleSaveJob(job)}
               onApply={(url) => {
-                recordApplication(job);
                 if (url) window.open(url, "_blank", "noopener");
+                setApplyConfirmJob(job);
               }}
               onOptimize={() => navigate("/resume")}
             />
           ))}
         </div>
       )}
+
+      <ApplyConfirmModal
+        open={!!applyConfirmJob}
+        onNo={() => setApplyConfirmJob(null)}
+        onYes={() => {
+          if (!applyConfirmJob) return;
+          recordApplication(applyConfirmJob);
+          const payload = applyConfirmJob;
+          setApplyConfirmJob(null);
+          navigate("/applied", { state: { newlyAppliedJob: payload } });
+        }}
+      />
     </RecruxListPageShell>
   );
 }

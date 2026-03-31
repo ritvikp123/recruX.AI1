@@ -1,14 +1,17 @@
-import { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { supabase } from "../lib/supabase";
-import { parseResume, resumeGapWhy, resumeOptimizeForJob } from "../lib/api";
+import { extractResumeFast, parseResume, resumeGapWhy, resumeOptimizeForJob } from "../lib/api";
+import { sanitizeResumeText } from "../lib/resumeSanitize";
 import { useJobStore } from "../store/useJobStore";
 import { R } from "../recrux/theme";
 
 export function ResumeOptimizer() {
   const { user } = useAuth();
   const setResumeText = useJobStore((s) => s.setResumeText);
+  const setResumeSkills = useJobStore((s) => s.setResumeSkills);
   const resumeText = useJobStore((s) => s.resumeText);
+  const loadResumeFromSupabase = useJobStore((s) => s.loadResumeFromSupabase);
   const [tab, setTab] = useState<"optimize" | "why">("optimize");
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -31,7 +34,20 @@ export function ResumeOptimizer() {
 
   const panelHairline = `0.5px solid ${R.border}`;
 
-  const resumeForApi = () => (resumeText || "").trim();
+  useEffect(() => {
+    if (user?.id) void loadResumeFromSupabase(user.id);
+  }, [user?.id, loadResumeFromSupabase]);
+
+  useEffect(() => {
+    // If we have resume text (persisted / loaded) but no parsed sections, show a stable preview.
+    if (!resumeText?.trim()) return;
+    if (parsedSummary || parsedExperience || parsedSkills) return;
+    setParsedSummary("Resume text loaded. Re-upload to re-run full parsing for structured sections.");
+    setParsedSkills("—");
+    setParsedExperience(sanitizeResumeText(resumeText).slice(0, 1200));
+  }, [resumeText, parsedSummary, parsedExperience, parsedSkills]);
+
+  const resumeForApi = () => sanitizeResumeText((resumeText || "").trim());
 
   const runOptimize = async () => {
     const rt = resumeForApi();
@@ -98,7 +114,15 @@ export function ResumeOptimizer() {
       if (ext === "pdf" || ext === "docx") {
         try {
           const data = await parseResume(file);
-          text = data?.raw_text || "";
+          const parseLooksBroken =
+            (data?.professional_summary || "").trim() === "Error parsing resume content." ||
+            // When Ollama is down, backend returns minimal fallback with empty skills.
+            (!data?.skills || data.skills.length === 0);
+          if (parseLooksBroken) {
+            throw new Error("AI parsing unavailable (check Ollama). Falling back to fast extract.");
+          }
+
+          text = sanitizeResumeText(data?.raw_text || "");
           setResumeText(text);
 
           setParsedSummary((data?.professional_summary || "").trim() || "No summary found.");
@@ -121,15 +145,58 @@ export function ResumeOptimizer() {
               ? data.skills.join(", ")
               : "No skills extracted."
           );
+
+          // Option B: merge LLM skills with deterministic keyword extract so we don't miss items.
+          let extractedSkills: string[] = [];
+          try {
+            const extracted = await extractResumeFast(file);
+            extractedSkills = Array.isArray(extracted?.skills) ? extracted.skills : [];
+          } catch {
+            // ignore extract failure; keep parse skills
+          }
+
+          const parseSkills = Array.isArray(data?.skills) ? data.skills : [];
+          const mergedSkills = Array.from(
+            new Map(
+              [...parseSkills, ...extractedSkills]
+                .map((s) => String(s).trim())
+                .filter(Boolean)
+                .map((s) => [s.toLowerCase(), s] as const)
+            ).values()
+          );
+
+          setParsedSkills(mergedSkills.length ? mergedSkills.join(", ") : "No skills extracted.");
+          setResumeSkills(mergedSkills);
+
           await supabase.from("profiles").upsert({
             id: user.id,
             resume_text: text || null,
-            skills: data?.skills?.length ? data.skills : null,
+            skills: mergedSkills.length ? mergedSkills : null,
             updated_at: new Date().toISOString(),
           });
         } catch (err: unknown) {
-          const msg = err instanceof Error ? err.message : "Parse failed.";
-          alert(`Resume parse failed: ${msg}`);
+          // Fallback: extract raw text + keyword skills without requiring Ollama.
+          try {
+            const extracted = await extractResumeFast(file);
+            text = sanitizeResumeText(extracted?.raw_text || "");
+            setResumeText(text);
+            setParsedSummary("AI parsing unavailable; using fast extract (raw text + keyword skills).");
+            setParsedExperience(text ? text.slice(0, 1200) : "No text extracted.");
+            setParsedSkills(
+              Array.isArray(extracted?.skills) && extracted.skills.length ? extracted.skills.join(", ") : "No skills extracted."
+            );
+            setResumeSkills(Array.isArray(extracted?.skills) ? extracted.skills : []);
+            await supabase.from("profiles").upsert({
+              id: user.id,
+              resume_text: text || null,
+              skills: extracted?.skills?.length ? extracted.skills : null,
+              updated_at: new Date().toISOString(),
+            });
+            alert("Resume uploaded. Used fast extract because AI parse was unavailable.");
+          } catch (fallbackErr: unknown) {
+            const msg = fallbackErr instanceof Error ? fallbackErr.message : "Parse failed.";
+            alert(`Resume parse failed: ${msg}`);
+          }
         }
       }
       if (!text) setResumeText("Resume uploaded.");

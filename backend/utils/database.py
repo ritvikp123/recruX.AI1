@@ -49,7 +49,7 @@ class Profile(Base):
     ats_score = Column(Integer, default=0)
     raw_text = Column(Text)
     role_name = Column(String)
-    embedding = Column(Vector(768)) # PGVector column matching nomic-embed-text dimension
+    embedding = Column(Vector(1536)) # PGVector column matching nomic-embed-text dimension
     created_at = Column(DateTime, default=datetime.utcnow)
 
     user = relationship("User", back_populates="profiles")
@@ -66,7 +66,7 @@ class Job(Base):
     remote_allowed = Column(Boolean, default=True)
     experience_level = Column(String)
     skills_required = Column(JSONB, default=list)
-    embedding = Column(Vector(768)) # PGVector column matching nomic-embed-text dimension
+    embedding = Column(Vector(1536)) # PGVector column matching nomic-embed-text dimension
     created_at = Column(DateTime, default=datetime.utcnow)
 
 class UserJobMatch(Base):

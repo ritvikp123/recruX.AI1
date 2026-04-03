@@ -14,7 +14,7 @@ def _norm_provider(v: str | None, default: str) -> str:
 class _DummyEmbeddings:
     """Fallback embeddings to keep pgvector flows alive without a real embed model."""
 
-    def __init__(self, dims: int = 768):
+    def __init__(self, dims: int = 1536):
         self.dims = int(dims)
 
     def embed_query(self, text: str):
@@ -97,8 +97,8 @@ def get_embeddings():
     """
     provider = _norm_provider(os.getenv("EMBEDDINGS_PROVIDER"), "ollama")
     if provider == "dummy":
-        print("[LLM LOG] Embeddings=dummy dims=768")
-        return _DummyEmbeddings(dims=768)
+        print("[LLM LOG] Embeddings=dummy dims=1536")
+        return _DummyEmbeddings(dims=1536)
     if provider == "openai":
         from langchain_openai import OpenAIEmbeddings
 

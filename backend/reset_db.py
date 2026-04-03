@@ -11,7 +11,7 @@ def reset_db():
         print("Dropped existing tables.")
     
     init_db()
-    print("Database re-initialized with correct vector dimensions (768).")
+    print("Database re-initialized with correct vector dimensions (1536).")
 
 if __name__ == "__main__":
     reset_db()

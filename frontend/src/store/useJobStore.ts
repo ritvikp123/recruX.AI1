@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { searchJSearchJobs } from "../lib/jsearch";
-import { applyJob, removeSavedJob, saveJob } from "../lib/savedJobsApi";
+import { applyJob, removeSavedJob, saveJob, fetchSavedJobs, fetchAppliedJobs } from "../lib/savedJobsApi";
 import type { Job } from "../types/job";
 import { supabase } from "../lib/supabase";
 import { isMockJobId } from "../lib/mockJobs";
@@ -65,6 +65,11 @@ interface JobState {
   /** Remove demo applications from persisted state and Supabase (dev JSearch fallback). */
   pruneMockApplications: () => void;
   recordRecentView: (job: Job) => void;
+
+  /** Clear all local user data (call on signout) */
+  clearUserData: () => void;
+  /** Fetch user data from DB and clear local overlaps (call on signin) */
+  hydrateUserJobs: (userId: string) => Promise<void>;
 }
 
 export const useJobStore = create<JobState>()(
@@ -100,6 +105,27 @@ export const useJobStore = create<JobState>()(
       setSelectedJob: (job) => set({ selectedJob: job }),
       setResumeText: (text) => set({ resumeText: text }),
       setResumeSkills: (skills) => set({ resumeSkills: Array.isArray(skills) ? skills : [] }),
+
+      clearUserData: () => set({
+        savedJobs: [],
+        appliedJobIds: [],
+        appliedJobs: [],
+        recentlyViewedJobs: [],
+        resumeText: "",
+        resumeSkills: [],
+      }),
+
+      hydrateUserJobs: async (userId: string) => {
+        const [saved, applied] = await Promise.all([
+          fetchSavedJobs(userId),
+          fetchAppliedJobs(userId),
+        ]);
+        set({
+          savedJobs: saved,
+          appliedJobs: applied,
+          appliedJobIds: applied.map((j) => j.id),
+        });
+      },
 
       loadResumeFromSupabase: async (userId: string) => {
         const { data } = await supabase

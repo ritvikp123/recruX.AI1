@@ -91,3 +91,31 @@ export async function applyJob(userId: string, job: Job): Promise<void> {
   });
   if (error) console.error("applyJob insert:", error.message);
 }
+
+/** Fetch all saved jobs for a user */
+export async function fetchSavedJobs(userId: string): Promise<Job[]> {
+  const { data, error } = await supabase
+    .from("saved_jobs")
+    .select("job_data")
+    .eq("user_id", userId)
+    .order("saved_at", { ascending: false });
+  if (error) {
+    console.error("fetchSavedJobs:", error.message);
+    return [];
+  }
+  return data.map((row) => row.job_data as Job);
+}
+
+/** Fetch all applied jobs for a user */
+export async function fetchAppliedJobs(userId: string): Promise<Job[]> {
+  const { data, error } = await supabase
+    .from("applications")
+    .select("job_data")
+    .eq("user_id", userId)
+    .order("applied_at", { ascending: false });
+  if (error) {
+    console.error("fetchAppliedJobs:", error.message);
+    return [];
+  }
+  return data.map((row) => row.job_data as Job);
+}

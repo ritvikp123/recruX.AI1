@@ -100,7 +100,7 @@ def get_db():
     finally:
         db.close()
 
-def save_profile(profile_data: dict, role_name: str, user_id: Optional[str] = None):
+def save_profile(profile_data: dict, role_name: str, user_id: str):
     db = SessionLocal()
     try:
         # Create a new Profile instance
@@ -116,7 +116,7 @@ def save_profile(profile_data: dict, role_name: str, user_id: Optional[str] = No
 
         new_profile = Profile(
             id=p_id,
-            user_id=uuid.UUID(user_id) if user_id else None,
+            user_id=uuid.UUID(user_id),
             full_name=profile_data.get("full_name"),
             email=profile_data.get("email"),
             phone=profile_data.get("phone"),
@@ -136,10 +136,10 @@ def save_profile(profile_data: dict, role_name: str, user_id: Optional[str] = No
     finally:
         db.close()
 
-def get_profile(profile_id: str):
+def get_profile(profile_id: str, user_id: str):
     db = SessionLocal()
     try:
-        profile = db.query(Profile).filter(Profile.id == profile_id).first()
+        profile = db.query(Profile).filter(Profile.id == profile_id, Profile.user_id == uuid.UUID(user_id)).first()
         if profile:
             return {
                 "id": str(profile.id),

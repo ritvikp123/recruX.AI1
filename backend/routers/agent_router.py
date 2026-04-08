@@ -1,6 +1,6 @@
 import json
 import os
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Request, Response
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Request, Response, Depends
 from typing import List, Optional
 from pydantic import BaseModel
 from models.schemas import (
@@ -25,6 +25,7 @@ from agents.resume_tailor_agent import explain_resume_gap, optimize_resume_for_j
 from utils.file_parser import extract_text_from_file
 from utils.database import save_profile, get_profile
 from utils.llm_factory import get_llm
+from utils.auth_utils import get_current_user_id
 
 router = APIRouter()
 
@@ -274,7 +275,7 @@ def _parse_llm_roadmap_json(content: str, goal: str, resume: str) -> dict:
 
 
 @router.post("/jobs/match", response_model=GraphWorkflowOutput, tags=["Orchestrator"])
-async def run_full_workflow(file: UploadFile = File(...), role_name: str = Form("General Role")):
+async def run_full_workflow(file: UploadFile = File(...), role_name: str = Form("General Role"), user_id: str = Depends(get_current_user_id)):
     """
     Complete LangGraph workflow:
     1. Parse Resume
@@ -299,7 +300,8 @@ async def run_full_workflow(file: UploadFile = File(...), role_name: str = Form(
         parsed = final_state["parsed_resume"]
         save_profile(
             profile_data=parsed.model_dump(),
-            role_name=role_name
+            role_name=role_name,
+            user_id=user_id
         )
         
         return GraphWorkflowOutput(
@@ -333,7 +335,7 @@ async def resume_extract_options():
     return Response(status_code=200)
 
 @router.post("/resume/extract", response_model=ResumeExtractOutput, tags=["Agents"])
-async def extract_resume_fast(file: UploadFile = File(...)):
+async def extract_resume_fast(file: UploadFile = File(...), user_id: str = Depends(get_current_user_id)):
     """
     Fast resume extraction (no LLM). Extracts raw text and skills via keyword matching.
     Use this for quick uploads; use /resume/parse for full AI analysis.
@@ -349,7 +351,7 @@ async def extract_resume_fast(file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/resume/parse", response_model=ResumeParseOutput, tags=["Agents"])
-async def parse_resume(file: UploadFile = File(...)):
+async def parse_resume(file: UploadFile = File(...), user_id: str = Depends(get_current_user_id)):
     """
     Endpoint to process a resume file (PDF/docx), extract skills and calculate an ATS score limit.
     """
@@ -381,7 +383,7 @@ async def resume_gap_why_options():
 
 
 @router.post("/resume/optimize", response_model=ResumeTailorTextResponse, tags=["Agents"])
-async def resume_optimize_for_job(body: ResumeTailorRequest):
+async def resume_optimize_for_job(body: ResumeTailorRequest, user_id: str = Depends(get_current_user_id)):
     """
     Tailor resume bullets / experience narrative to a job description (plain text).
     """
@@ -406,7 +408,7 @@ async def resume_optimize_for_job(body: ResumeTailorRequest):
 
 
 @router.post("/resume/gap-why", response_model=ResumeTailorTextResponse, tags=["Agents"])
-async def resume_gap_why(body: ResumeTailorRequest):
+async def resume_gap_why(body: ResumeTailorRequest, user_id: str = Depends(get_current_user_id)):
     """
     Explain likely gaps between resume and job (why you might not get shortlisted).
     """
@@ -471,7 +473,7 @@ async def jobs_score_options():
     return Response(status_code=200)
 
 @router.post("/jobs/score", response_model=JobMatchScoreOutput, tags=["Agents"])
-async def calculate_scores(body: JobScoreRequest):
+async def calculate_scores(body: JobScoreRequest, user_id: str = Depends(get_current_user_id)):
     """
     JSON body: resume_text, job_description (snake_case).
     Declared as Pydantic so OpenAPI/Swagger shows a request body and clients always send application/json.
@@ -489,7 +491,7 @@ async def calculate_scores(body: JobScoreRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/chat", response_model=ChatResponse, tags=["AI Assistant"])
-async def chat_with_assistant(request: ChatRequest):
+async def chat_with_assistant(request: ChatRequest, user_id: str = Depends(get_current_user_id)):
     """
     Chat with the Recrux AI Assistant using RAG context.
     """
@@ -501,7 +503,7 @@ async def chat_with_assistant(request: ChatRequest):
 
 
 @router.post("/roadmap", tags=["AI Assistant"])
-async def generate_roadmap(request: RoadmapRequest):
+async def generate_roadmap(request: RoadmapRequest, user_id: str = Depends(get_current_user_id)):
     """
     Generate a career roadmap JSON. The career goal is primary; resume is optional context.
     """
@@ -547,11 +549,11 @@ If no resume, user_has mostly false and readiness about 15-35 unless the goal im
 
 
 @router.get("/profile/{profile_id}", tags=["User Profile"])
-async def fetch_user_profile(profile_id: str):
+async def fetch_user_profile(profile_id: str, user_id: str = Depends(get_current_user_id)):
     """
     Fetch a stored user profile from SQLite.
     """
-    profile = get_profile(profile_id)
+    profile = get_profile(profile_id, user_id)
     if not profile:
         raise HTTPException(status_code=404, detail="Profile not found")
     return profile

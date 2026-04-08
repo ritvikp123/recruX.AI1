@@ -4,6 +4,7 @@ import { R } from "../recrux/theme";
 import { supabase } from "../lib/supabase";
 import { isMockJobId } from "../lib/mockJobs";
 import type { Job } from "../types/job";
+import { RecruxEmptyState } from "../components/recrux/RecruxEmptyState";
 
 const WEEKS = 12;
 const DAYS = 7;
@@ -334,6 +335,17 @@ export function Progress() {
       <div style={{ height: 4, background: `linear-gradient(90deg, ${R.primary}, ${R.mid})` }} />
       <div style={{ padding: 20, flex: 1, minHeight: 0, overflowY: "auto" }}>
         <h1 style={{ fontSize: 22, fontWeight: 700, color: R.darkest, marginBottom: 16 }}>Progress</h1>
+
+        {!hasActivity && (
+          <div style={{ marginBottom: 24 }}>
+            <RecruxEmptyState
+              title="No applications tracked yet"
+              description="Your progress chart will fully unlock here automatically once you start applying to roles."
+              ctaLabel="Find roles to apply to"
+              ctaTo="/jobs"
+            />
+          </div>
+        )}
 
         <div style={section}>
           <h2 style={{ fontSize: 13, fontWeight: 500, color: R.darkest }}>Application streak</h2>

@@ -12,6 +12,7 @@ export function AuthCallback() {
   const navigate = useNavigate();
   const { setSessionFromAuth } = useAuth();
   const [message, setMessage] = useState("Signing you in…");
+  const [initialHash] = useState(window.location.hash);
 
   useEffect(() => {
     let cancelled = false;
@@ -31,7 +32,11 @@ export function AuthCallback() {
               console.warn("Failed to persist onboarding preferences:", err);
             }
           }
-          navigate("/dashboard", { replace: true });
+          if (initialHash.includes("type=recovery")) {
+             navigate("/reset-password", { replace: true });
+          } else {
+             navigate("/dashboard", { replace: true });
+          }
         } else {
           setMessage("Sign-in was cancelled or failed.");
           setTimeout(() => navigate("/", { replace: true }), 2000);
@@ -44,7 +49,7 @@ export function AuthCallback() {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [navigate, setSessionFromAuth]);
+  }, [navigate, setSessionFromAuth, initialHash]);
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-js-brand-bg">

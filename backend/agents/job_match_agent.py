@@ -26,20 +26,14 @@ def get_scoring_chain():
         _chain = prompt | structured_llm
     return _chain
 
-score_prompt_template = """Score resume vs job 0-100. Be strict.
-90-100: Strong. 70-89: Good. 50-69: Partial. 30-49: Weak. 0-29: Poor.
-Job: {job_description}
-Resume: {resume_text}
+score_prompt_template = """You are an expert technical recruiter.
+Job Description:
+{job_description}
 
-Return match_score (int) and reasoning in this EXACT format (one section per line):
-YOU_HAVE: skill1, skill2, skill3
-MISSING: skill4, skill5
-QUICK_WINS: suggestion1; suggestion2; suggestion3
+Resume:
+{resume_text}
 
-- YOU_HAVE: skills from the job description that appear in the resume (comma-separated)
-- MISSING: skills the job requires that are NOT in the resume (comma-separated)
-- QUICK_WINS: 2-3 actionable suggestions to close the gap (courses, projects, certifications). Semicolon-separated.
-If no matched skills, write "None". If no missing skills, write "None". Always give 2-3 quick wins."""
+Analyze the candidate's fit based on skills and experience. Output the 'match_score' (int between 0 and 100) and 'reasoning' (brief explanation of the score, noting key matches or missing skills)."""
 
 
 async def score_single_job(resume_text: str, job_description: str, job_id: str) -> JobScore:

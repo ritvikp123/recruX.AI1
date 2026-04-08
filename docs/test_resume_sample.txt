@@ -1,0 +1,39 @@
+Alex Rivera
+alex.rivera.dev@example.com | (555) 010-2030 | San Francisco, CA | linkedin.com/in/alexrivera | github.com/arivera
+
+PROFESSIONAL SUMMARY
+Software engineer with 5+ years building APIs, data pipelines, and cloud-native services. Focus on Python, FastAPI, PostgreSQL, and GCP. Comfortable with LLM integrations, retrieval workflows, and pragmatic system design.
+
+SKILLS
+Languages: Python, TypeScript, SQL
+Backend: FastAPI, REST, GraphQL (basic), background jobs
+Data: PostgreSQL, pgvector, Redis (caching), ETL with Pandas
+Cloud: Google Cloud Run, Cloud SQL, Secret Manager, basic Vertex AI usage
+DevOps: Docker, GitHub Actions, pytest
+Other: LangChain basics, OpenAPI, OAuth concepts
+
+EXPERIENCE
+
+Senior Software Engineer | Northwind Labs — Remote
+Jan 2022 – Present
+- Own backend for a B2B analytics product: FastAPI services, async workers, and Postgres schemas with migrations.
+- Cut p95 API latency ~35% by profiling hot paths, adding indexes, and caching stable reads in Redis.
+- Partnered with ML team to ship semantic search over documents using embeddings and vector indexes.
+- Led on-call rotation; reduced incident MTTR with runbooks and structured logging.
+
+Software Engineer | Harbor Systems — San Francisco, CA
+Jun 2019 – Dec 2021
+- Built internal tools in Python and React; integrated third-party APIs with retries and idempotency.
+- Migrated a monolithic reporting module into smaller services behind an API gateway.
+
+PROJECTS
+
+Career Compass (side project)
+- Prototype chat assistant that answers career questions using a small vector store and structured prompts.
+- Stack: Python, FastAPI, Postgres, containerized deploy on Cloud Run.
+
+EDUCATION
+B.S. Computer Science — State University, 2019
+
+CERTIFICATIONS
+Google Cloud Associate Cloud Engineer (sample — not a real cert ID)

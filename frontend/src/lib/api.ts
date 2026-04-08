@@ -200,7 +200,7 @@ export async function register(data: {
   password: string;
   full_name?: string;
 }): Promise<{ access_token: string }> {
-  return request<{ access_token: string }>("/auth/register", {
+  return request<{ access_token: string }>("/auth/signup", {
     method: "POST",
     body: JSON.stringify(data),
   });

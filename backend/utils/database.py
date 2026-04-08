@@ -15,7 +15,8 @@ from dotenv import load_dotenv
 _env_path = Path(__file__).resolve().parent.parent / ".env"
 load_dotenv(dotenv_path=_env_path)
 
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:password@localhost:5432/Recrux_VecDB_Dev")
+# Strip CR/LF — Secret Manager values created via PowerShell pipes sometimes include \r in the URL.
+DATABASE_URL = (os.getenv("DATABASE_URL", "postgresql://postgres:password@localhost:5432/Recrux_VecDB_Dev") or "").strip()
 
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -49,7 +50,7 @@ class Profile(Base):
     ats_score = Column(Integer, default=0)
     raw_text = Column(Text)
     role_name = Column(String)
-    embedding = Column(Vector(1536)) # PGVector column matching nomic-embed-text dimension
+    embedding = Column(Vector(768)) # PGVector column matching Vertex text-embedding-004 dimension
     created_at = Column(DateTime, default=datetime.utcnow)
 
     user = relationship("User", back_populates="profiles")
@@ -66,7 +67,7 @@ class Job(Base):
     remote_allowed = Column(Boolean, default=True)
     experience_level = Column(String)
     skills_required = Column(JSONB, default=list)
-    embedding = Column(Vector(1536)) # PGVector column matching nomic-embed-text dimension
+    embedding = Column(Vector(768)) # PGVector column matching Vertex text-embedding-004 dimension
     created_at = Column(DateTime, default=datetime.utcnow)
 
 class UserJobMatch(Base):

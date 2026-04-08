@@ -27,7 +27,7 @@ export function ForgotPassword() {
     });
     setLoading(false);
     if (error) {
-      setMessage("Unable to send reset email. Please try again.");
+      setMessage(error.message || "Unable to send reset email. Please try again.");
     } else {
       setMessage("Password reset email sent!");
     }

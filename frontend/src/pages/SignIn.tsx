@@ -162,7 +162,7 @@ export function SignIn() {
                     redirectTo: window.location.origin + "/reset-password",
                   });
                   if (error) {
-                    setError("Unable to send reset email. Please try again.");
+                    setError(error.message || "Unable to send reset email. Please try again.");
                     setShakeKey((k) => k + 1);
                   } else {
                     setError("Password reset email sent!");

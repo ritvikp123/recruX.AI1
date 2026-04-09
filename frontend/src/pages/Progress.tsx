@@ -4,7 +4,7 @@ import { R } from "../recrux/theme";
 import { supabase } from "../lib/supabase";
 import { isMockJobId } from "../lib/mockJobs";
 import type { Job } from "../types/job";
-import { RecruxEmptyState } from "../components/recrux/RecruxEmptyState";
+import { Link } from "react-router-dom";
 
 const WEEKS = 12;
 const DAYS = 7;
@@ -19,6 +19,19 @@ function hashString(s: string) {
   let h = 0;
   for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
   return h;
+}
+
+function learningLinkForSkill(skill: string): string {
+  const s = skill.toLowerCase();
+  if (s.includes("kubernetes")) return "https://kubernetes.io/docs/tutorials/kubernetes-basics/";
+  if (s.includes("system design")) return "https://github.com/donnemartin/system-design-primer";
+  if (s.includes("ci/cd")) return "https://www.atlassian.com/continuous-delivery/ci-vs-ci-vs-cd";
+  if (s.includes("graphql")) return "https://graphql.org/learn/";
+  if (s.includes("docker")) return "https://docs.docker.com/get-started/";
+  if (s.includes("performance")) return "https://web.dev/learn/performance";
+  if (s.includes("security")) return "https://owasp.org/www-project-top-ten/";
+  if (s.includes("database")) return "https://www.prisma.io/dataguide/datamodeling";
+  return "https://roadmap.sh";
 }
 
 /** Monday-start week; returns that Monday at local midnight. */
@@ -139,6 +152,9 @@ function ContributionGridFromLevels({ levels }: { levels: number[] }) {
 }
 
 export function Progress() {
+  // Keep Progress in demo mode for now, per product request.
+  // This prevents flicker/disappear behavior from hydration/DB timing.
+  const FORCE_MOCK_PROGRESS = true;
   const weeks = ["M", "T", "W", "T", "F", "S", "S"];
 
   const filters = useJobStore((s) => s.filters);
@@ -148,34 +164,53 @@ export function Progress() {
   const pruneMockApplications = useJobStore((s) => s.pruneMockApplications);
 
   const [dbApps, setDbApps] = useState<DbApplicationRow[] | null>(null);
+  const [dbReady, setDbReady] = useState(false);
+  const [persistReady, setPersistReady] = useState(() => {
+    try {
+      return useJobStore.persist.hasHydrated();
+    } catch {
+      return true;
+    }
+  });
 
   useEffect(() => {
     pruneMockApplications();
   }, [pruneMockApplications]);
 
   useEffect(() => {
+    const unsub = useJobStore.persist.onFinishHydration(() => setPersistReady(true));
+    if (useJobStore.persist.hasHydrated()) setPersistReady(true);
+    return unsub;
+  }, []);
+
+  useEffect(() => {
     let cancelled = false;
     (async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user?.id || cancelled) {
-        if (!cancelled) setDbApps([]);
-        return;
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (cancelled) return;
+        if (!user?.id) {
+          setDbApps([]);
+          return;
+        }
+        const { data, error } = await supabase
+          .from("applications")
+          .select("job_id, applied_at, job_data")
+          .eq("user_id", user.id)
+          .order("applied_at", { ascending: false });
+        if (cancelled) return;
+        if (error) {
+          console.warn("Progress: applications fetch", error.message);
+          setDbApps([]);
+          return;
+        }
+        const rows = ((data ?? []) as DbApplicationRow[]).filter((r) => !isMockJobId(r.job_id));
+        setDbApps(rows);
+      } finally {
+        if (!cancelled) setDbReady(true);
       }
-      const { data, error } = await supabase
-        .from("applications")
-        .select("job_id, applied_at, job_data")
-        .eq("user_id", user.id)
-        .order("applied_at", { ascending: false });
-      if (cancelled) return;
-      if (error) {
-        console.warn("Progress: applications fetch", error.message);
-        setDbApps([]);
-        return;
-      }
-      const rows = ((data ?? []) as DbApplicationRow[]).filter((r) => !isMockJobId(r.job_id));
-      setDbApps(rows);
     })();
     return () => {
       cancelled = true;
@@ -206,7 +241,14 @@ export function Progress() {
   }, [dbApps, appliedJobs]);
 
   const appliedCount = appliedJobIds.filter((id) => !isMockJobId(id)).length;
-  const hasActivity = mergedTimestamps.length > 0;
+  /**
+   * Only treat activity as "real" after persisted store + applications fetch settle.
+   * Otherwise localStorage rehydration briefly injects appliedJobs and the mock UI flashes away.
+   */
+  const hasTrackedActivity =
+    !FORCE_MOCK_PROGRESS && persistReady && dbReady && mergedTimestamps.length > 0;
+  /** When true, charts use seeded samples; we also show demo summary stats. */
+  const usingMockProgress = !hasTrackedActivity;
 
   const avgMatch = useMemo(() => {
     const list = mergedJobsForMatch.filter((j) => typeof j.matchScore === "number");
@@ -235,7 +277,7 @@ export function Progress() {
   }, [filters.query, filters.location, filters.employmentType, filters.remoteOnly, appliedCount, avgMatch]);
 
   const heatmapLevels = useMemo(() => {
-    if (hasActivity) return heatmapLevelsFromDates(mergedTimestamps);
+    if (hasTrackedActivity) return heatmapLevelsFromDates(mergedTimestamps);
     const threshold = 0.54;
     const levels: number[] = [];
     for (let w = 0; w < WEEKS; w++) {
@@ -246,20 +288,39 @@ export function Progress() {
       }
     }
     return levels;
-  }, [hasActivity, mergedTimestamps, seed]);
+  }, [hasTrackedActivity, mergedTimestamps, seed]);
 
   const barCounts = useMemo(() => {
-    if (hasActivity) return applicationsThisWeekByDay(mergedTimestamps);
+    if (hasTrackedActivity) return applicationsThisWeekByDay(mergedTimestamps);
     const sample = [2, 5, 3, 6, 4, 7, 5];
     const matchScale = clamp(avgMatch ?? 68, 45, 95) / 95;
     const jitter = Array.from({ length: 7 }, (_, i) => ((seed + i * 19) % 3) - 1);
     return sample.map((v, i) => clamp(Math.round(v * (0.82 + matchScale * 0.35) + jitter[i]!), 1, 7));
-  }, [hasActivity, mergedTimestamps, avgMatch, seed]);
+  }, [hasTrackedActivity, mergedTimestamps, avgMatch, seed]);
 
   const barMax = useMemo(() => Math.max(1, ...barCounts), [barCounts]);
 
+  /** Shown in copy when only demo charts are available (deterministic from seed). */
+  const demoAvgMatch = useMemo(() => {
+    if (avgMatch != null) return avgMatch;
+    return clamp(68 + ((seed % 17) - 8), 55, 88);
+  }, [avgMatch, seed]);
+
+  const mockSummary = useMemo(() => {
+    if (!usingMockProgress) return null;
+    const weekTotal = barCounts.reduce((a, b) => a + b, 0);
+    const streakDays = 3 + (seed % 12);
+    const totalApps = 18 + (seed % 22);
+    return {
+      weekTotal,
+      streakDays,
+      totalApps,
+      bestMatch: clamp(demoAvgMatch + 4 + (seed % 7), 60, 95),
+    };
+  }, [usingMockProgress, seed, barCounts, demoAvgMatch]);
+
   const linePercents = useMemo(() => {
-    if (!hasActivity) {
+    if (!hasTrackedActivity) {
       const sample = [62, 68, 71, 69, 74, 78, 80];
       const matchDelta = clamp(avgMatch ?? 68, 45, 95) - 68;
       const jitter = Array.from({ length: 7 }, (_, i) => ((seed + i * 31) % 5) - 2);
@@ -271,7 +332,7 @@ export function Progress() {
       const v = 62 + bias * 0.45 + n;
       return clamp(Math.round(v), 45, 90);
     });
-  }, [hasActivity, avgMatch, seed]);
+  }, [hasTrackedActivity, avgMatch, seed]);
 
   const lineMaxPercent = useMemo(() => Math.max(...linePercents, 1), [linePercents]);
 
@@ -336,21 +397,60 @@ export function Progress() {
       <div style={{ padding: 20, flex: 1, minHeight: 0, overflowY: "auto" }}>
         <h1 style={{ fontSize: 22, fontWeight: 700, color: R.darkest, marginBottom: 16 }}>Progress</h1>
 
-        {!hasActivity && (
-          <div style={{ marginBottom: 24 }}>
-            <RecruxEmptyState
-              title="No applications tracked yet"
-              description="Your progress chart will fully unlock here automatically once you start applying to roles."
-              ctaLabel="Find roles to apply to"
-              ctaTo="/jobs"
-            />
+        {usingMockProgress && mockSummary && (
+          <div
+            style={{
+              marginBottom: 20,
+              padding: 14,
+              borderRadius: 12,
+              border: panelHairline,
+              background: R.light,
+            }}
+          >
+            <p style={{ fontSize: 13, fontWeight: 600, color: R.darkest, margin: "0 0 6px" }}>
+              Sample progress (demo data)
+            </p>
+            <p style={{ fontSize: 12, color: R.body, margin: "0 0 12px", lineHeight: 1.5 }}>
+              Charts below use realistic placeholders until you apply to roles. Then this page switches to your real
+              activity automatically.
+            </p>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 12 }}>
+              {[
+                { label: "Applications (demo total)", value: String(mockSummary.totalApps) },
+                { label: "This week (demo)", value: String(mockSummary.weekTotal) },
+                { label: "Streak (demo days)", value: String(mockSummary.streakDays) },
+                { label: "Best match (demo)", value: `${mockSummary.bestMatch}%` },
+              ].map((chip) => (
+                <div
+                  key={chip.label}
+                  style={{
+                    padding: "8px 12px",
+                    borderRadius: 10,
+                    background: R.card,
+                    border: panelHairline,
+                    minWidth: 120,
+                  }}
+                >
+                  <div style={{ fontSize: 10, fontWeight: 600, color: R.muted, textTransform: "uppercase" }}>
+                    {chip.label}
+                  </div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: R.primary, marginTop: 2 }}>{chip.value}</div>
+                </div>
+              ))}
+            </div>
+            <Link
+              to="/jobs"
+              style={{ fontSize: 13, fontWeight: 600, color: R.primary, textDecoration: "none" }}
+            >
+              Find roles to apply to →
+            </Link>
           </div>
         )}
 
         <div style={section}>
           <h2 style={{ fontSize: 13, fontWeight: 500, color: R.darkest }}>Application streak</h2>
           <p style={{ fontSize: 11, color: R.deep, marginTop: 4 }}>
-            {hasActivity
+            {hasTrackedActivity
               ? "Last 12 weeks from your applications (darker = more activity that day)"
               : "Sample grid — apply to roles to see your real activity here"}
           </p>
@@ -377,7 +477,7 @@ export function Progress() {
         <div style={section}>
           <h2 style={{ fontSize: 13, fontWeight: 500, color: R.darkest }}>Applications this week</h2>
           <p style={{ fontSize: 11, color: R.deep, marginTop: 4 }}>
-            {hasActivity ? "Count per weekday (this calendar week)" : "Illustrative pattern until you apply"}
+            {hasTrackedActivity ? "Count per weekday (this calendar week)" : "Illustrative pattern until you apply"}
           </p>
           <div
             style={{
@@ -418,8 +518,8 @@ export function Progress() {
                         width: "100%",
                         background: R.mid,
                         borderRadius: "4px 4px 0 0",
-                        height: Math.max(hasActivity && c === 0 ? 4 : 0, hPx),
-                        minHeight: hasActivity && c === 0 ? 4 : hPx > 0 ? 6 : 0,
+                        height: Math.max(hasTrackedActivity && c === 0 ? 4 : 0, hPx),
+                        minHeight: hasTrackedActivity && c === 0 ? 4 : hPx > 0 ? 6 : 0,
                       }}
                     />
                   </div>
@@ -433,9 +533,11 @@ export function Progress() {
         <div style={section}>
           <h2 style={{ fontSize: 13, fontWeight: 500, color: R.darkest }}>Avg match score</h2>
           <p style={{ fontSize: 11, color: R.deep, marginTop: 4 }}>
-            {avgMatch != null
-              ? `Current average from your applications: ${avgMatch}%`
-              : "Match scores appear when roles include a match % (try Jobs or Dashboard previews)"}
+            {usingMockProgress
+              ? `Sample average match: ${demoAvgMatch}% (real average appears once you apply to scored roles)`
+              : avgMatch != null
+                ? `Current average from your applications: ${avgMatch}%`
+                : "Match scores appear when roles include a match % (try Jobs or Dashboard previews)"}
           </p>
           <div
             style={{
@@ -496,7 +598,19 @@ export function Progress() {
                 }}
               >
                 <span>{skill}</span>
-                <span style={{ fontSize: 11, fontWeight: 500, color: R.primary }}>Start learning</span>
+                <a
+                  href={learningLinkForSkill(skill)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 500,
+                    color: R.primary,
+                    textDecoration: "none",
+                  }}
+                >
+                  Start learning
+                </a>
               </li>
             ))}
           </ul>

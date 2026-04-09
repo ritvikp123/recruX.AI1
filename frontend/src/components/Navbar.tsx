@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { NavLink, Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Search } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
@@ -29,10 +29,34 @@ export function Navbar() {
   const [searchParams] = useSearchParams();
   const urlQ = searchParams.get("q")?.trim() ?? "";
   const [navQuery, setNavQuery] = useState("");
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const profileMenuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (urlQ) setNavQuery(urlQ);
   }, [urlQ]);
+
+  useEffect(() => {
+    if (!profileMenuOpen) return;
+
+    const onClickOutside = (event: MouseEvent) => {
+      if (!profileMenuRef.current) return;
+      if (!profileMenuRef.current.contains(event.target as Node)) {
+        setProfileMenuOpen(false);
+      }
+    };
+
+    const onEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setProfileMenuOpen(false);
+    };
+
+    document.addEventListener("mousedown", onClickOutside);
+    document.addEventListener("keydown", onEscape);
+    return () => {
+      document.removeEventListener("mousedown", onClickOutside);
+      document.removeEventListener("keydown", onEscape);
+    };
+  }, [profileMenuOpen]);
 
   const runNavSearch = () => {
     const q = navQuery.trim();
@@ -145,65 +169,107 @@ export function Navbar() {
         />
       </div>
 
-      <button
-        type="button"
-        onClick={async () => {
-          await signOut();
-          navigate("/");
-        }}
-        style={{
-          fontSize: 12,
-          color: R.primary,
-          background: "none",
-          border: "none",
-          cursor: "pointer",
-          fontWeight: 500,
-        }}
-      >
-        Sign out
-      </button>
-
-      <div style={{ position: "relative", flexShrink: 0 }}>
-        <div
-          style={{
-            width: 28,
-            height: 28,
-            borderRadius: "50%",
-            background: R.primary,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: 10,
-            color: "#ffffff",
-            fontWeight: 600,
-          }}
+      <div ref={profileMenuRef} style={{ position: "relative", flexShrink: 0 }}>
+        <button
+          type="button"
+          onClick={() => setProfileMenuOpen((v) => !v)}
+          aria-haspopup="menu"
+          aria-expanded={profileMenuOpen}
           title={display}
-        >
-          {initials(display)}
-        </div>
-        <span
           style={{
-            position: "absolute",
-            top: -2,
-            right: -2,
-            minWidth: 16,
-            height: 16,
-            padding: "0 3px",
-            borderRadius: 999,
-            background: "#ef4444",
-            color: "#ffffff",
-            fontSize: 9,
-            fontWeight: 700,
+            border: "none",
+            background: "transparent",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            border: "2px solid #ffffff",
-            lineHeight: 1,
+            cursor: "pointer",
+            padding: 0,
           }}
         >
-          1
-        </span>
+          <div
+            style={{
+              width: 28,
+              height: 28,
+              borderRadius: "50%",
+              background: R.primary,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: 10,
+              color: "#ffffff",
+              fontWeight: 600,
+            }}
+          >
+            {initials(display)}
+          </div>
+        </button>
+
+        {profileMenuOpen && (
+          <div
+            role="menu"
+            style={{
+              position: "absolute",
+              top: 34,
+              right: 0,
+              minWidth: 170,
+              background: R.card,
+              border: hairline,
+              borderRadius: 10,
+              boxShadow: "0 10px 24px rgba(15, 23, 42, 0.12)",
+              padding: 6,
+              zIndex: 120,
+            }}
+          >
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setProfileMenuOpen(false);
+                navigate("/dashboard");
+              }}
+              style={menuItemStyle}
+            >
+              Dashboard
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setProfileMenuOpen(false);
+                navigate("/settings");
+              }}
+              style={menuItemStyle}
+            >
+              Settings
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={async () => {
+                setProfileMenuOpen(false);
+                await signOut();
+                navigate("/");
+              }}
+              style={{ ...menuItemStyle, color: "#b91c1c" }}
+            >
+              Sign out
+            </button>
+          </div>
+        )}
       </div>
     </nav>
   );
 }
+
+const menuItemStyle: React.CSSProperties = {
+  width: "100%",
+  border: "none",
+  background: "transparent",
+  textAlign: "left",
+  padding: "9px 10px",
+  borderRadius: 8,
+  cursor: "pointer",
+  fontSize: 13,
+  color: R.darkest,
+  fontWeight: 500,
+};

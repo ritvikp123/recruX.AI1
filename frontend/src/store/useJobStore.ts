@@ -4,7 +4,7 @@ import { searchJSearchJobs } from "../lib/jsearch";
 import { applyJob, removeSavedJob, saveJob, fetchSavedJobs, fetchAppliedJobs } from "../lib/savedJobsApi";
 import type { Job } from "../types/job";
 import { supabase } from "../lib/supabase";
-import { isMockJobId } from "../lib/mockJobs";
+import { buildMockDashboardJobs, isMockJobId } from "../lib/mockJobs";
 
 type MatchFn = (resumeText: string | undefined, job: Job) => number;
 
@@ -316,6 +316,11 @@ export const useJobStore = create<JobState>()(
       fetchDashboardPreview: async (computeMatch) => {
         const { resumeText, filters } = get();
         set({ dashboardLoading: true, error: null });
+        const dashboardMock = () =>
+          buildMockDashboardJobs({
+            baseTitle: filters.query || "Software Engineer",
+            remoteOnly: filters.remoteOnly,
+          });
         try {
           const list = await searchJSearchJobs({
             query: filters.query || "Software Engineer",
@@ -323,6 +328,14 @@ export const useJobStore = create<JobState>()(
             remoteOnly: filters.remoteOnly,
             employmentType: filters.employmentType,
           });
+          if (list.length === 0) {
+            set({
+              dashboardJobs: dashboardMock(),
+              dashboardLoading: false,
+              error: "Showing demo jobs for now because the live search returned no roles.",
+            });
+            return;
+          }
           const withScores = list.slice(0, 5).map((j) => ({
             ...j,
             matchScore: computeMatch(resumeText, j),
@@ -330,57 +343,13 @@ export const useJobStore = create<JobState>()(
           set({ dashboardJobs: withScores, dashboardLoading: false, error: null });
         } catch (err: unknown) {
           const missingKey = isMissingJSearchKeyError(err);
-          const allowMock = isDev() && missingKey;
-          if (!allowMock) {
-            const msg =
-              missingKey
-                ? "Dashboard jobs preview is not configured. Add `VITE_RAPIDAPI_KEY` (or `VITE_JSEARCH_API_KEY`) to `frontend/.env`, then restart `npm run dev`."
-                : `Dashboard jobs preview failed. ${err instanceof Error ? err.message : "Check your network / RapidAPI quota."}`;
-            set({ dashboardJobs: [], dashboardLoading: false, error: msg });
-            return;
-          }
-
-          // Dev-only fallback: if JSearch isn't configured, keep the dashboard populated
-          // with a handful of high-match demo cards so it isn't empty.
-          const mock = (start: number) => {
-            const baseTitle = filters.query || "Software Engineer";
-            const mk = (i: number) => ({
-              id: `mock-dashboard-${start + i}`,
-              title: [
-                baseTitle,
-                `${baseTitle} (Frontend)`,
-                `${baseTitle} (Full Stack)`,
-                `${baseTitle} (Backend)`,
-                `${baseTitle} (Platform)`,
-              ][i]!,
-              company: [
-                "Northwind Labs",
-                "Aurora Systems",
-                "Contoso Analytics",
-                "Globex Tech",
-                "Initech",
-              ][i]!,
-              location: filters.remoteOnly
-                ? "Remote"
-                : ["Remote", "Hybrid", "San Francisco, CA", "Austin, TX", "New York, NY"][i]!,
-              description:
-                "Mock listing: align your resume with this role, focus on impact, and prepare an interview narrative from your project evidence.",
-              applyUrl: undefined,
-              salaryMin: undefined,
-              salaryMax: undefined,
-              remote: filters.remoteOnly ? true : [true, false, false, false, false][i]!,
-              skills: ["React", "TypeScript", "APIs", "Testing", "System Design"],
-              postedAt: undefined,
-              matchScore: [96, 92, 88, 85, 82][i]!,
-            });
-            return Array.from({ length: 5 }, (_, i) => mk(i));
-          };
-
+          const msg = missingKey
+            ? "Using demo jobs for now because `VITE_RAPIDAPI_KEY` (or `VITE_JSEARCH_API_KEY`) is missing."
+            : `Using demo jobs for now because live preview failed. ${err instanceof Error ? err.message : "Check your network / RapidAPI quota."}`;
           set({
-            dashboardJobs: mock(Date.now() % 1000),
+            dashboardJobs: dashboardMock(),
             dashboardLoading: false,
-            error:
-              "Using demo jobs because `VITE_RAPIDAPI_KEY` (or `VITE_JSEARCH_API_KEY`) is missing. Add it to `frontend/.env` and restart to fetch real listings.",
+            error: msg,
           });
         }
       },

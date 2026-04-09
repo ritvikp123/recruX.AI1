@@ -308,57 +308,6 @@ export function Settings() {
         >
           <div style={{ display: "flex", flexDirection: "column", gap: 26 }}>
         <section>
-          <SectionTitle>Account</SectionTitle>
-          <Card>
-            <Row>
-              <div style={{ fontSize: 12, fontWeight: 600, color: R.body, marginBottom: 4 }}>Email</div>
-              <div style={{ fontSize: 15, color: R.darkest }}>{user?.email ?? "—"}</div>
-            </Row>
-            <Row borderTop>
-              <Link
-                to="/reset-password"
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: 12,
-                  textDecoration: "none",
-                  color: "inherit",
-                }}
-              >
-                <div>
-                  <div style={{ fontSize: 15, fontWeight: 500, color: R.darkest }}>Password</div>
-                  <div style={{ fontSize: 12, color: R.body, marginTop: 4 }}>Reset via email</div>
-                </div>
-                <ChevronRight size={18} color={R.muted} strokeWidth={2} />
-              </Link>
-            </Row>
-            <Row borderTop>
-              <button
-                type="button"
-                onClick={async () => {
-                  await signOut();
-                  navigate("/");
-                }}
-                style={{
-                  background: "none",
-                  border: "none",
-                  padding: 0,
-                  cursor: "pointer",
-                  fontSize: 15,
-                  fontWeight: 500,
-                  color: "#b91c1c",
-                  fontFamily: "inherit",
-                  textAlign: "left",
-                }}
-              >
-                Sign out
-              </button>
-            </Row>
-          </Card>
-        </section>
-
-        <section>
           <SectionTitle>Career profile</SectionTitle>
           <form onSubmit={handleSaveCareer}>
             <Card>
@@ -520,6 +469,57 @@ export function Settings() {
             <Row>
               <div style={{ fontSize: 15, fontWeight: 500, color: R.darkest }}>Recrux</div>
               <div style={{ fontSize: 13, color: R.body, marginTop: 6 }}>Version 1.0.0</div>
+            </Row>
+          </Card>
+        </section>
+
+        <section>
+          <SectionTitle>Account</SectionTitle>
+          <Card>
+            <Row>
+              <div style={{ fontSize: 12, fontWeight: 600, color: R.body, marginBottom: 4 }}>Email</div>
+              <div style={{ fontSize: 15, color: R.darkest }}>{user?.email ?? "—"}</div>
+            </Row>
+            <Row borderTop>
+              <Link
+                to="/reset-password"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 12,
+                  textDecoration: "none",
+                  color: "inherit",
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: 15, fontWeight: 500, color: R.darkest }}>Password</div>
+                  <div style={{ fontSize: 12, color: R.body, marginTop: 4 }}>Reset via email</div>
+                </div>
+                <ChevronRight size={18} color={R.muted} strokeWidth={2} />
+              </Link>
+            </Row>
+            <Row borderTop>
+              <button
+                type="button"
+                onClick={async () => {
+                  await signOut();
+                  navigate("/");
+                }}
+                style={{
+                  background: "none",
+                  border: "none",
+                  padding: 0,
+                  cursor: "pointer",
+                  fontSize: 15,
+                  fontWeight: 500,
+                  color: "#b91c1c",
+                  fontFamily: "inherit",
+                  textAlign: "left",
+                }}
+              >
+                Sign out
+              </button>
             </Row>
           </Card>
         </section>

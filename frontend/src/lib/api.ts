@@ -1,6 +1,6 @@
 /**
  * Centralized API client for the Recruix backend.
- * Base URL: VITE_API_URL (defaults to http://localhost:8000)
+ * Base URL: VITE_API_URL (defaults to http://localhost:8001)
  * Attaches Supabase session JWT (Bearer) on every request via getSession().
  */
 

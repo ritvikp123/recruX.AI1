@@ -319,6 +319,10 @@ export function OnboardingFlow() {
 
   const goBack = () => {
     setError("");
+    if (stepIndex === 0) {
+      navigate("/", { replace: true });
+      return;
+    }
     setDirection(-1);
     setStepIndex((i) => Math.max(0, i - 1));
   };
@@ -540,13 +544,12 @@ export function OnboardingFlow() {
             <button
               type="button"
               onClick={goBack}
-              disabled={stepIndex === 0}
               style={{
                 border: hairline,
-                background: stepIndex === 0 ? R.card : R.light,
+                background: R.light,
                 borderRadius: 12,
                 padding: "10px 14px",
-                cursor: stepIndex === 0 ? "not-allowed" : "pointer",
+                cursor: "pointer",
                 color: R.darkest,
                 fontSize: 13,
                 fontWeight: 900,
@@ -554,7 +557,7 @@ export function OnboardingFlow() {
                 alignItems: "center",
                 gap: 8,
                 minHeight: 44,
-                opacity: stepIndex === 0 ? 0.7 : 1,
+                opacity: 1,
               }}
             >
               <ChevronLeft size={18} strokeWidth={2.5} />

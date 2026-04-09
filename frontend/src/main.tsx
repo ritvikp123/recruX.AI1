@@ -14,6 +14,7 @@ import { Dashboard } from "./pages/Dashboard";
 import { Jobs } from "./pages/Jobs";
 import { ResumeOptimizer } from "./pages/ResumeOptimizer";
 import { Progress } from "./pages/Progress";
+import { ProgressWeekdayApplications } from "./pages/ProgressWeekdayApplications";
 import { SavedJobs } from "./pages/SavedJobs";
 import { AppliedJobs } from "./pages/AppliedJobs";
 import { Settings } from "./pages/Settings";
@@ -90,6 +91,16 @@ function AppRoutes() {
           <ProtectedRoute>
             <AppShell>
               <Progress />
+            </AppShell>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/progress/weekday/:dayIndex"
+        element={
+          <ProtectedRoute>
+            <AppShell>
+              <ProgressWeekdayApplications />
             </AppShell>
           </ProtectedRoute>
         }

@@ -4,7 +4,7 @@ import { R } from "../recrux/theme";
 import { supabase } from "../lib/supabase";
 import { isMockJobId } from "../lib/mockJobs";
 import type { Job } from "../types/job";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 const WEEKS = 12;
 const DAYS = 7;
@@ -152,6 +152,7 @@ function ContributionGridFromLevels({ levels }: { levels: number[] }) {
 }
 
 export function Progress() {
+  const navigate = useNavigate();
   // Keep Progress in demo mode for now, per product request.
   // This prevents flicker/disappear behavior from hydration/DB timing.
   const FORCE_MOCK_PROGRESS = true;
@@ -477,7 +478,9 @@ export function Progress() {
         <div style={section}>
           <h2 style={{ fontSize: 13, fontWeight: 500, color: R.darkest }}>Applications this week</h2>
           <p style={{ fontSize: 11, color: R.deep, marginTop: 4 }}>
-            {hasTrackedActivity ? "Count per weekday (this calendar week)" : "Illustrative pattern until you apply"}
+            {hasTrackedActivity
+              ? "Count per weekday (this calendar week). Tap a day for details."
+              : "Illustrative pattern until you apply. Tap a day to preview demo application details."}
           </p>
           <div
             style={{
@@ -491,8 +494,15 @@ export function Progress() {
             {barCounts.map((c, i) => {
               const hPx = Math.round((c / barMax) * BAR_AREA_PX);
               return (
-                <div
+                <button
                   key={i}
+                  type="button"
+                  title={`View applications for ${dayLabels[i]}`}
+                  onClick={() =>
+                    navigate(`/progress/weekday/${i}`, {
+                      state: { count: c, dayLabel: dayLabels[i] },
+                    })
+                  }
                   style={{
                     flex: 1,
                     display: "flex",
@@ -500,6 +510,12 @@ export function Progress() {
                     alignItems: "center",
                     justifyContent: "flex-end",
                     minWidth: 0,
+                    border: "none",
+                    background: "transparent",
+                    cursor: "pointer",
+                    padding: "4px 2px 0",
+                    fontFamily: "inherit",
+                    borderRadius: 8,
                   }}
                 >
                   <div
@@ -524,7 +540,7 @@ export function Progress() {
                     />
                   </div>
                   <span style={{ fontSize: 9, color: R.deep, marginTop: 6 }}>{dayLabels[i]}</span>
-                </div>
+                </button>
               );
             })}
           </div>

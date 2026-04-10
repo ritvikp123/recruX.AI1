@@ -137,6 +137,10 @@ celerybeat.pid
 # Environments
 .env
 .envrc
+
+# GCP service account keys (never commit)
+key.json
+*-service-account*.json
 .venv
 env/
 venv/

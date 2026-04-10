@@ -88,6 +88,7 @@ export async function applyJob(userId: string, job: Job): Promise<void> {
     user_id: userId,
     job_id: job.id,
     job_data,
+    applied_at: new Date().toISOString(),
   });
   if (error) console.error("applyJob insert:", error.message);
 }
@@ -106,16 +107,27 @@ export async function fetchSavedJobs(userId: string): Promise<Job[]> {
   return data.map((row) => row.job_data as Job);
 }
 
-/** Fetch all applied jobs for a user */
+/** Fetch all applied jobs for a user (includes `applied_at` from Supabase on each job). */
 export async function fetchAppliedJobs(userId: string): Promise<Job[]> {
   const { data, error } = await supabase
     .from("applications")
-    .select("job_data")
+    .select("job_id, applied_at, job_data")
     .eq("user_id", userId)
     .order("applied_at", { ascending: false });
   if (error) {
     console.error("fetchAppliedJobs:", error.message);
     return [];
   }
-  return data.map((row) => row.job_data as Job);
+  return (data ?? []).map((row) => {
+    const raw = (row.job_data ?? {}) as Partial<Job>;
+    return {
+      ...raw,
+      id: String(raw.id ?? row.job_id),
+      title: raw.title ?? "Applied role",
+      company: raw.company ?? "",
+      location: raw.location ?? "",
+      description: raw.description ?? "",
+      appliedAt: row.applied_at as string,
+    } as Job;
+  });
 }

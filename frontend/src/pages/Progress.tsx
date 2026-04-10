@@ -15,12 +15,6 @@ function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
 }
 
-function hashString(s: string) {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
-  return h;
-}
-
 function learningLinkForSkill(skill: string): string {
   const s = skill.toLowerCase();
   if (s.includes("kubernetes")) return "https://kubernetes.io/docs/tutorials/kubernetes-basics/";
@@ -70,9 +64,9 @@ function rowToJob(row: DbApplicationRow): Job {
     salaryMin: raw.salaryMin,
     salaryMax: raw.salaryMax,
     remote: raw.remote,
-    skills: raw.skills,
+    skills: Array.isArray(raw.skills) ? (raw.skills as string[]) : raw.skills,
     postedAt: raw.postedAt,
-    matchScore: raw.matchScore,
+    matchScore: typeof raw.matchScore === "number" ? raw.matchScore : undefined,
     appliedAt: row.applied_at,
   };
 }
@@ -125,6 +119,61 @@ function applicationsThisWeekByDay(timestamps: string[]): number[] {
   return counts;
 }
 
+/** Jobs applied this calendar week (Mon–Sun), one bucket per weekday index 0=Mon. */
+function jobsByWeekdayThisWeek(jobs: Job[]): Job[][] {
+  const monday = startOfWeekMonday(new Date());
+  const nextMonday = new Date(monday);
+  nextMonday.setDate(nextMonday.getDate() + 7);
+  const buckets: Job[][] = Array.from({ length: 7 }, () => []);
+  for (const j of jobs) {
+    if (!j.appliedAt) continue;
+    const dt = new Date(j.appliedAt);
+    if (dt < monday || dt >= nextMonday) continue;
+    const ix = (dt.getDay() + 6) % 7;
+    buckets[ix]!.push(j);
+  }
+  for (const b of buckets) {
+    b.sort((a, c) => new Date(c.appliedAt!).getTime() - new Date(a.appliedAt!).getTime());
+  }
+  return buckets;
+}
+
+/** Average match % per weekday this week (0 if no scored applications that day). */
+function matchPercentsByWeekday(jobs: Job[]): number[] {
+  const monday = startOfWeekMonday(new Date());
+  const nextMonday = new Date(monday);
+  nextMonday.setDate(nextMonday.getDate() + 7);
+  const buckets: { sum: number; n: number }[] = Array.from({ length: 7 }, () => ({ sum: 0, n: 0 }));
+  for (const j of jobs) {
+    if (!j.appliedAt || typeof j.matchScore !== "number") continue;
+    const dt = new Date(j.appliedAt);
+    if (dt < monday || dt >= nextMonday) continue;
+    const ix = (dt.getDay() + 6) % 7;
+    buckets[ix]!.sum += j.matchScore;
+    buckets[ix]!.n += 1;
+  }
+  return buckets.map((b) => (b.n > 0 ? Math.round(b.sum / b.n) : 0));
+}
+
+/** Most common skills from roles the user applied to (for focus-area list). */
+function topSkillsFromAppliedJobs(jobs: Job[], limit: number): string[] {
+  const counts = new Map<string, { label: string; n: number }>();
+  for (const j of jobs) {
+    for (const s of j.skills ?? []) {
+      const trimmed = String(s).trim();
+      if (!trimmed) continue;
+      const k = trimmed.toLowerCase();
+      const prev = counts.get(k);
+      if (prev) prev.n += 1;
+      else counts.set(k, { label: trimmed, n: 1 });
+    }
+  }
+  return [...counts.values()]
+    .sort((a, b) => b.n - a.n)
+    .slice(0, limit)
+    .map((x) => x.label);
+}
+
 function ContributionGridFromLevels({ levels }: { levels: number[] }) {
   const cells = useMemo(() => {
     const out: ReactNode[] = [];
@@ -153,13 +202,8 @@ function ContributionGridFromLevels({ levels }: { levels: number[] }) {
 
 export function Progress() {
   const navigate = useNavigate();
-  // Keep Progress in demo mode for now, per product request.
-  // This prevents flicker/disappear behavior from hydration/DB timing.
-  const FORCE_MOCK_PROGRESS = true;
   const weeks = ["M", "T", "W", "T", "F", "S", "S"];
 
-  const filters = useJobStore((s) => s.filters);
-  const appliedJobIds = useJobStore((s) => s.appliedJobIds);
   const appliedJobs = useJobStore((s) => s.appliedJobs);
   const dashboardJobs = useJobStore((s) => s.dashboardJobs);
   const pruneMockApplications = useJobStore((s) => s.pruneMockApplications);
@@ -241,15 +285,14 @@ export function Progress() {
     return [...byId.values()];
   }, [dbApps, appliedJobs]);
 
-  const appliedCount = appliedJobIds.filter((id) => !isMockJobId(id)).length;
-  /**
-   * Only treat activity as "real" after persisted store + applications fetch settle.
-   * Otherwise localStorage rehydration briefly injects appliedJobs and the mock UI flashes away.
-   */
-  const hasTrackedActivity =
-    !FORCE_MOCK_PROGRESS && persistReady && dbReady && mergedTimestamps.length > 0;
-  /** When true, charts use seeded samples; we also show demo summary stats. */
-  const usingMockProgress = !hasTrackedActivity;
+  /** Avoid showing placeholder numbers before zustand persist + Supabase applications load. */
+  const dataReady = persistReady && dbReady;
+  const hasRealApplications = dataReady && mergedTimestamps.length > 0;
+
+  const jobsThisWeekByDay = useMemo(
+    () => jobsByWeekdayThisWeek(mergedJobsForMatch),
+    [mergedJobsForMatch]
+  );
 
   const avgMatch = useMemo(() => {
     const list = mergedJobsForMatch.filter((j) => typeof j.matchScore === "number");
@@ -265,105 +308,63 @@ export function Progress() {
     return null;
   }, [mergedJobsForMatch, dashboardJobs]);
 
-  const seed = useMemo(() => {
-    const parts = [
-      filters.query ?? "",
-      filters.location ?? "",
-      filters.employmentType ?? "",
-      String(filters.remoteOnly ?? false),
-      String(appliedCount),
-      String(avgMatch ?? 0),
-    ];
-    return hashString(parts.join("|"));
-  }, [filters.query, filters.location, filters.employmentType, filters.remoteOnly, appliedCount, avgMatch]);
+  const heatmapLevels = useMemo(
+    () => heatmapLevelsFromDates(hasRealApplications ? mergedTimestamps : []),
+    [hasRealApplications, mergedTimestamps]
+  );
 
-  const heatmapLevels = useMemo(() => {
-    if (hasTrackedActivity) return heatmapLevelsFromDates(mergedTimestamps);
-    const threshold = 0.54;
-    const levels: number[] = [];
-    for (let w = 0; w < WEEKS; w++) {
-      for (let d = 0; d < DAYS; d++) {
-        const n = ((w * 17 + d * 31 + seed * 13) % 100) / 100;
-        if (n < threshold) levels.push(0);
-        else levels.push(((w + d) % 3) + 1);
-      }
-    }
-    return levels;
-  }, [hasTrackedActivity, mergedTimestamps, seed]);
-
-  const barCounts = useMemo(() => {
-    if (hasTrackedActivity) return applicationsThisWeekByDay(mergedTimestamps);
-    const sample = [2, 5, 3, 6, 4, 7, 5];
-    const matchScale = clamp(avgMatch ?? 68, 45, 95) / 95;
-    const jitter = Array.from({ length: 7 }, (_, i) => ((seed + i * 19) % 3) - 1);
-    return sample.map((v, i) => clamp(Math.round(v * (0.82 + matchScale * 0.35) + jitter[i]!), 1, 7));
-  }, [hasTrackedActivity, mergedTimestamps, avgMatch, seed]);
+  const barCounts = useMemo(
+    () =>
+      hasRealApplications ? applicationsThisWeekByDay(mergedTimestamps) : [0, 0, 0, 0, 0, 0, 0],
+    [hasRealApplications, mergedTimestamps]
+  );
 
   const barMax = useMemo(() => Math.max(1, ...barCounts), [barCounts]);
 
-  /** Shown in copy when only demo charts are available (deterministic from seed). */
-  const demoAvgMatch = useMemo(() => {
-    if (avgMatch != null) return avgMatch;
-    return clamp(68 + ((seed % 17) - 8), 55, 88);
-  }, [avgMatch, seed]);
-
-  const mockSummary = useMemo(() => {
-    if (!usingMockProgress) return null;
-    const weekTotal = barCounts.reduce((a, b) => a + b, 0);
-    const streakDays = 3 + (seed % 12);
-    const totalApps = 18 + (seed % 22);
-    return {
-      weekTotal,
-      streakDays,
-      totalApps,
-      bestMatch: clamp(demoAvgMatch + 4 + (seed % 7), 60, 95),
-    };
-  }, [usingMockProgress, seed, barCounts, demoAvgMatch]);
-
   const linePercents = useMemo(() => {
-    if (!hasTrackedActivity) {
-      const sample = [62, 68, 71, 69, 74, 78, 80];
-      const matchDelta = clamp(avgMatch ?? 68, 45, 95) - 68;
-      const jitter = Array.from({ length: 7 }, (_, i) => ((seed + i * 31) % 5) - 2);
-      return sample.map((v, i) => clamp(Math.round(v + matchDelta * 0.35 + jitter[i]!), 45, 90));
-    }
-    const bias = clamp(avgMatch ?? 62, 45, 95) - 60;
-    return Array.from({ length: 7 }, (_, i) => {
-      const n = (((seed + i * 131) % 2000) / 2000) * 18 - 9;
-      const v = 62 + bias * 0.45 + n;
-      return clamp(Math.round(v), 45, 90);
-    });
-  }, [hasTrackedActivity, avgMatch, seed]);
+    if (!hasRealApplications) return [0, 0, 0, 0, 0, 0, 0];
+    const byDay = matchPercentsByWeekday(mergedJobsForMatch);
+    const hasAny = byDay.some((v) => v > 0);
+    if (hasAny) return byDay.map((v) => clamp(v, 0, 100));
+    if (avgMatch != null) return Array.from({ length: 7 }, () => clamp(avgMatch, 0, 100));
+    return [0, 0, 0, 0, 0, 0, 0];
+  }, [hasRealApplications, mergedJobsForMatch, avgMatch]);
 
   const lineMaxPercent = useMemo(() => Math.max(...linePercents, 1), [linePercents]);
 
-  const skillPool = [
-    "Kubernetes",
-    "System design",
-    "CI/CD",
-    "GraphQL",
-    "Docker",
-    "Performance tuning",
-    "Security basics",
-    "Database modeling",
-  ];
+  const skillFocusList = useMemo(
+    () => topSkillsFromAppliedJobs(mergedJobsForMatch, 8),
+    [mergedJobsForMatch]
+  );
 
-  const skillGaps = useMemo(() => {
-    if (appliedCount <= 0) {
-      const idxA = seed % skillPool.length;
-      const idxB = (seed + 11) % skillPool.length;
-      const idxC = (seed + 29) % skillPool.length;
-      const picked = new Set<string>([skillPool[idxA]!, skillPool[idxB]!, skillPool[idxC]!]);
-      while (picked.size < 3) picked.add(skillPool[(picked.size * 17 + seed) % skillPool.length]!);
-      return Array.from(picked);
+  const streakDays = useMemo(() => {
+    if (!hasRealApplications) return 0;
+    const counts = buildDayCounts(mergedTimestamps);
+    let streak = 0;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    for (let i = 0; i < 120; i++) {
+      const d = new Date(today);
+      d.setDate(d.getDate() - i);
+      const k = localYmd(d);
+      if ((counts.get(k) ?? 0) > 0) streak += 1;
+      else break;
     }
-    const picks = new Set<string>();
-    while (picks.size < 3) {
-      const idx = (seed + picks.size * 11) % skillPool.length;
-      picks.add(skillPool[idx]!);
-    }
-    return Array.from(picks);
-  }, [appliedCount, seed]);
+    return streak;
+  }, [hasRealApplications, mergedTimestamps]);
+
+  const weekApplicationTotal = useMemo(
+    () => (hasRealApplications ? barCounts.reduce((a, b) => a + b, 0) : 0),
+    [hasRealApplications, barCounts]
+  );
+
+  const bestMatchAmongApplied = useMemo(() => {
+    const scores = mergedJobsForMatch
+      .map((j) => j.matchScore)
+      .filter((n): n is number => typeof n === "number");
+    if (!scores.length) return null;
+    return Math.max(...scores);
+  }, [mergedJobsForMatch]);
 
   const section = {
     background: R.card,
@@ -398,7 +399,7 @@ export function Progress() {
       <div style={{ padding: 20, flex: 1, minHeight: 0, overflowY: "auto" }}>
         <h1 style={{ fontSize: 22, fontWeight: 700, color: R.darkest, marginBottom: 16 }}>Progress</h1>
 
-        {usingMockProgress && mockSummary && (
+        {dataReady && !hasRealApplications && (
           <div
             style={{
               marginBottom: 20,
@@ -409,36 +410,12 @@ export function Progress() {
             }}
           >
             <p style={{ fontSize: 13, fontWeight: 600, color: R.darkest, margin: "0 0 6px" }}>
-              Sample progress (demo data)
+              No applications tracked yet
             </p>
             <p style={{ fontSize: 12, color: R.body, margin: "0 0 12px", lineHeight: 1.5 }}>
-              Charts below use realistic placeholders until you apply to roles. Then this page switches to your real
-              activity automatically.
+              Mark roles as applied from Jobs or Saved — they sync here and fill your streak, weekly counts, and match
+              trends from your real data.
             </p>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 12 }}>
-              {[
-                { label: "Applications (demo total)", value: String(mockSummary.totalApps) },
-                { label: "This week (demo)", value: String(mockSummary.weekTotal) },
-                { label: "Streak (demo days)", value: String(mockSummary.streakDays) },
-                { label: "Best match (demo)", value: `${mockSummary.bestMatch}%` },
-              ].map((chip) => (
-                <div
-                  key={chip.label}
-                  style={{
-                    padding: "8px 12px",
-                    borderRadius: 10,
-                    background: R.card,
-                    border: panelHairline,
-                    minWidth: 120,
-                  }}
-                >
-                  <div style={{ fontSize: 10, fontWeight: 600, color: R.muted, textTransform: "uppercase" }}>
-                    {chip.label}
-                  </div>
-                  <div style={{ fontSize: 16, fontWeight: 700, color: R.primary, marginTop: 2 }}>{chip.value}</div>
-                </div>
-              ))}
-            </div>
             <Link
               to="/jobs"
               style={{ fontSize: 13, fontWeight: 600, color: R.primary, textDecoration: "none" }}
@@ -448,12 +425,44 @@ export function Progress() {
           </div>
         )}
 
+        {hasRealApplications && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 20 }}>
+            {[
+              { label: "Total applications", value: String(mergedJobsForMatch.length) },
+              { label: "This week", value: String(weekApplicationTotal) },
+              { label: "Current streak (days)", value: String(streakDays) },
+              {
+                label: "Best match",
+                value: bestMatchAmongApplied != null ? `${bestMatchAmongApplied}%` : "—",
+              },
+            ].map((chip) => (
+              <div
+                key={chip.label}
+                style={{
+                  padding: "8px 12px",
+                  borderRadius: 10,
+                  background: R.light,
+                  border: panelHairline,
+                  minWidth: 120,
+                }}
+              >
+                <div style={{ fontSize: 10, fontWeight: 600, color: R.muted, textTransform: "uppercase" }}>
+                  {chip.label}
+                </div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: R.primary, marginTop: 2 }}>{chip.value}</div>
+              </div>
+            ))}
+          </div>
+        )}
+
         <div style={section}>
           <h2 style={{ fontSize: 13, fontWeight: 500, color: R.darkest }}>Application streak</h2>
           <p style={{ fontSize: 11, color: R.deep, marginTop: 4 }}>
-            {hasTrackedActivity
+            {hasRealApplications
               ? "Last 12 weeks from your applications (darker = more activity that day)"
-              : "Sample grid — apply to roles to see your real activity here"}
+              : dataReady
+                ? "Your application dates will appear here once you mark roles as applied."
+                : "Loading your application history…"}
           </p>
           <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
             <div
@@ -478,9 +487,11 @@ export function Progress() {
         <div style={section}>
           <h2 style={{ fontSize: 13, fontWeight: 500, color: R.darkest }}>Applications this week</h2>
           <p style={{ fontSize: 11, color: R.deep, marginTop: 4 }}>
-            {hasTrackedActivity
+            {hasRealApplications
               ? "Count per weekday (this calendar week). Tap a day for details."
-              : "Illustrative pattern until you apply. Tap a day to preview demo application details."}
+              : dataReady
+                ? "Counts update from roles you mark as applied this week."
+                : "Loading…"}
           </p>
           <div
             style={{
@@ -500,7 +511,10 @@ export function Progress() {
                   title={`View applications for ${dayLabels[i]}`}
                   onClick={() =>
                     navigate(`/progress/weekday/${i}`, {
-                      state: { count: c, dayLabel: dayLabels[i] },
+                      state: {
+                        dayLabel: dayLabels[i],
+                        jobs: jobsThisWeekByDay[i] ?? [],
+                      },
                     })
                   }
                   style={{
@@ -534,8 +548,8 @@ export function Progress() {
                         width: "100%",
                         background: R.mid,
                         borderRadius: "4px 4px 0 0",
-                        height: Math.max(hasTrackedActivity && c === 0 ? 4 : 0, hPx),
-                        minHeight: hasTrackedActivity && c === 0 ? 4 : hPx > 0 ? 6 : 0,
+                        height: Math.max(hasRealApplications && c === 0 ? 4 : 0, hPx),
+                        minHeight: hasRealApplications && c === 0 ? 4 : hPx > 0 ? 6 : 0,
                       }}
                     />
                   </div>
@@ -549,11 +563,11 @@ export function Progress() {
         <div style={section}>
           <h2 style={{ fontSize: 13, fontWeight: 500, color: R.darkest }}>Avg match score</h2>
           <p style={{ fontSize: 11, color: R.deep, marginTop: 4 }}>
-            {usingMockProgress
-              ? `Sample average match: ${demoAvgMatch}% (real average appears once you apply to scored roles)`
+            {!hasRealApplications
+              ? "Average match appears after you apply to roles that have a match score (e.g. from Jobs or Dashboard)."
               : avgMatch != null
-                ? `Current average from your applications: ${avgMatch}%`
-                : "Match scores appear when roles include a match % (try Jobs or Dashboard previews)"}
+                ? `Average match across applications you applied to: ${avgMatch}%`
+                : "Open Jobs with your resume loaded so roles get match scores, then apply — those scores show here by day."}
           </p>
           <div
             style={{
@@ -596,40 +610,53 @@ export function Progress() {
         </div>
 
         <div style={section}>
-          <h2 style={{ fontSize: 13, fontWeight: 500, color: R.darkest }}>Skill gap tracker</h2>
-          <ul style={{ listStyle: "none", padding: 0, margin: "12px 0 0" }}>
-            {skillGaps.map((skill) => (
-              <li
-                key={skill}
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  padding: "10px 12px",
-                  background: R.light,
-                  borderRadius: 8,
-                  marginBottom: 8,
-                  fontSize: 12,
-                  color: R.deep,
-                }}
-              >
-                <span>{skill}</span>
-                <a
-                  href={learningLinkForSkill(skill)}
-                  target="_blank"
-                  rel="noopener noreferrer"
+          <h2 style={{ fontSize: 13, fontWeight: 500, color: R.darkest }}>Skills from your applications</h2>
+          <p style={{ fontSize: 11, color: R.deep, marginTop: 4 }}>
+            {hasRealApplications
+              ? "Skills listed on roles you applied to (most common first). Use links to go deeper on each topic."
+              : "When job postings include skill tags, they will show here after you apply."}
+          </p>
+          {!hasRealApplications || skillFocusList.length === 0 ? (
+            <p style={{ fontSize: 13, color: R.body, marginTop: 12 }}>
+              {hasRealApplications
+                ? "No skill tags were stored on those roles yet."
+                : "Nothing to show until you have applications with skill metadata."}
+            </p>
+          ) : (
+            <ul style={{ listStyle: "none", padding: 0, margin: "12px 0 0" }}>
+              {skillFocusList.map((skill) => (
+                <li
+                  key={skill}
                   style={{
-                    fontSize: 11,
-                    fontWeight: 500,
-                    color: R.primary,
-                    textDecoration: "none",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    padding: "10px 12px",
+                    background: R.light,
+                    borderRadius: 8,
+                    marginBottom: 8,
+                    fontSize: 12,
+                    color: R.deep,
                   }}
                 >
-                  Start learning
-                </a>
-              </li>
-            ))}
-          </ul>
+                  <span>{skill}</span>
+                  <a
+                    href={learningLinkForSkill(skill)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 500,
+                      color: R.primary,
+                      textDecoration: "none",
+                    }}
+                  >
+                    Start learning
+                  </a>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       </div>
     </div>

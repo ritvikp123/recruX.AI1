@@ -16,7 +16,7 @@ The system is split into three primary agents that can operate independently or 
 
 ### 2. Job Search Agent (`agents/job_search_agent.py`)
 - **Input**: Skills list and desired Role Name.
-- **Processing**: Fetches live jobs from **Arbeitnow** and **JSearch** (RapidAPI).
+- **Processing**: Runs local **RAG retrieval** over your own indexed job documents in PostgreSQL + pgvector.
 - **Output**: A list of recently matching jobs with titles, descriptions, and direct links.
 - **Standalone usage**: Accessible via `/api/jobs/search`.
 

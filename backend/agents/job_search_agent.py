@@ -1,6 +1,4 @@
 import os
-import uuid
-import httpx
 import json
 from typing import List
 from models.schemas import JobListing
@@ -9,10 +7,6 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from utils.vector_db import query_similar_jobs
-
-def _truthy_env(name: str, default: str = "false") -> bool:
-    v = os.getenv(name, default)
-    return str(v).strip().lower() in ("1", "true", "yes", "y", "on")
 
 def _truthy_env(name: str, default: str = "false") -> bool:
     v = os.getenv(name, default)
@@ -29,6 +23,10 @@ async def search_jobs(skills: List[str], role_name: str) -> List[JobListing]:
         raw_db_jobs = query_similar_jobs(query, n_results=10, return_raw=True)
     except Exception as e:
         print(f"RAG search error (is DB backfilled?): {e}")
+        allow_dummy = _truthy_env("ALLOW_DUMMY_JOBS", "false")
+        if allow_dummy:
+            print("RAG unavailable; falling back to dummy jobs.")
+            return _load_dummy_jobs()
         return []
         
     jobs = []

@@ -6,7 +6,10 @@ from pydantic import BaseModel
 from models.schemas import (
     ResumeParseOutput,
     ResumeExtractOutput,
+    JobListing,
     JobSearchOutput,
+    JobsIngestRequest,
+    JobsIngestResponse,
     JobMatchScoreOutput,
     JobScoreRequest,
     ResumeTailorRequest,
@@ -23,8 +26,9 @@ from agents.job_search_agent import search_jobs
 from agents.job_match_agent import score_jobs
 from agents.resume_tailor_agent import explain_resume_gap, optimize_resume_for_job
 from utils.file_parser import extract_text_from_file
-from utils.database import save_profile, get_profile
+from utils.database import save_profile, get_profile, SessionLocal, Job
 from utils.llm_factory import get_llm
+from utils.vector_db import store_job_vectors
 from utils.auth_utils import get_current_user_id
 
 router = APIRouter()
@@ -436,6 +440,55 @@ async def resume_gap_why(body: ResumeTailorRequest, user_id: str = Depends(get_c
 async def jobs_search_options():
     """CORS preflight for POST /jobs/search"""
     return Response(status_code=200)
+
+@router.post("/jobs/ingest", response_model=JobsIngestResponse, tags=["Agents"])
+async def ingest_jobs(body: JobsIngestRequest, user_id: str = Depends(get_current_user_id)):
+    """
+    Ingest retrieved job documents (JSON) into Postgres and index embeddings for RAG retrieval.
+    """
+    jobs = body.jobs or []
+    if not jobs:
+        raise HTTPException(status_code=400, detail="jobs array is required and cannot be empty.")
+
+    db = SessionLocal()
+    inserted = 0
+    updated = 0
+    try:
+        for job in jobs:
+            existing = db.query(Job).filter(Job.id == str(job.id)).first()
+            if existing:
+                updated += 1
+            else:
+                inserted += 1
+
+            db.merge(
+                Job(
+                    id=str(job.id),
+                    job_title=job.job_title,
+                    company_name=job.company_name,
+                    location=job.location or "Remote",
+                    job_description=job.job_description,
+                    salary_range=job.salary_range,
+                    job_listing_link=job.job_listing_link,
+                    remote_allowed=bool(job.remote_allowed),
+                    experience_level=job.experience_level,
+                    skills_required=job.skills_required,
+                )
+            )
+
+        db.commit()
+        # Embed/update vectors in a single pass after DB upsert.
+        store_job_vectors(jobs)
+        return JobsIngestResponse(
+            inserted=inserted,
+            updated=updated,
+            total_received=len(jobs),
+        )
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"jobs ingest failed: {str(e)}")
+    finally:
+        db.close()
 
 @router.post("/jobs/search", response_model=JobSearchOutput, tags=["Agents"])
 async def find_jobs(request: Request):

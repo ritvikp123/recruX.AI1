@@ -1,8 +1,9 @@
 import os
-import requests
+import json
 from dotenv import load_dotenv
 from pathlib import Path
 import sys
+import uuid
 
 # Add backend directory to sys path so we can import utils
 sys.path.append(str(Path(__file__).resolve().parent.parent))
@@ -10,16 +11,27 @@ sys.path.append(str(Path(__file__).resolve().parent.parent))
 from utils.database import SessionLocal, Job
 from utils.vector_db import store_job_vectors
 
-def fetch_jobs():
-    url = "https://www.arbeitnow.com/api/job-board-api"
-    response = requests.get(url)
-    response.raise_for_status()
-    return response.json().get("data", [])
+load_dotenv()
+
+def load_jobs_from_local_source():
+    """
+    Loads user-provided retrieved jobs from a local JSON file.
+    Expected shape: list[dict], where each dict has title/company/location/description/url/tags.
+    """
+    default_path = Path(__file__).resolve().parent.parent / "utils" / "dummy_jobs.json"
+    source = Path(os.getenv("RETRIEVED_JOBS_PATH", str(default_path)))
+    if not source.exists():
+        raise FileNotFoundError(f"Retrieved jobs file not found: {source}")
+    with open(source, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    if not isinstance(data, list):
+        raise ValueError("Retrieved jobs JSON must be a list of objects.")
+    return data
 
 def main():
-    print("Fetching jobs from Arbeitnow...")
-    jobs_data = fetch_jobs()
-    print(f"Found {len(jobs_data)} jobs. Inserting into database...")
+    print("Loading jobs from local retrieved-doc source...")
+    jobs_data = load_jobs_from_local_source()
+    print(f"Loaded {len(jobs_data)} jobs. Inserting into database...")
     
     db = SessionLocal()
     inserted = 0
@@ -27,10 +39,13 @@ def main():
     new_jobs_list = []
     try:
         for job_info in jobs_data:
-            # Using slug as ID as Arbeitnow provides unique slugs
-            job_id = job_info.get("slug")
-            if not job_id:
-                continue
+            # Prefer explicit id, then slug/url, else generate stable-ish fallback.
+            job_id = (
+                str(job_info.get("id") or "").strip()
+                or str(job_info.get("slug") or "").strip()
+                or str(job_info.get("url") or "").strip()
+                or str(uuid.uuid4())
+            )
                 
             existing_job = db.query(Job).filter(Job.id == job_id).first()
             if existing_job:
@@ -45,14 +60,13 @@ def main():
                     continue
 
             
-            # Map Arbeitnow to Job model
-            tags = job_info.get("tags", [])
+            tags = job_info.get("tags", []) or job_info.get("skills_required", [])
             new_job = Job(
                 id=job_id,
-                job_title=job_info.get("title", ""),
+                job_title=job_info.get("job_title", job_info.get("title", "")),
                 company_name=job_info.get("company_name", ""),
-                location=job_info.get("location", ""),
-                job_description=job_info.get("description", ""),
+                location=job_info.get("location", "Remote"),
+                job_description=job_info.get("job_description", job_info.get("description", "")),
                 job_listing_link=job_info.get("url", ""),
                 remote_allowed=job_info.get("remote", True),
                 skills_required=tags

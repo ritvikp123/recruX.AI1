@@ -60,6 +60,15 @@ class JobSearchRequest(BaseModel):
     query: str = Field(default="Software Engineer", description="Search query (role, keywords)")
     filters: Optional[dict] = Field(default_factory=dict, description="Optional filters (skills, location, etc.)")
 
+class JobsIngestRequest(BaseModel):
+    """JSON body for POST /api/jobs/ingest"""
+    jobs: List[JobListing] = Field(default_factory=list, description="Retrieved jobs to store and index for RAG.")
+
+class JobsIngestResponse(BaseModel):
+    inserted: int = 0
+    updated: int = 0
+    total_received: int = 0
+
 
 # --- Job Scoring Models ---
 

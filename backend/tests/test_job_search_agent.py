@@ -7,12 +7,12 @@ from dotenv import load_dotenv
 load_dotenv()
 
 @pytest.mark.asyncio
-async def test_search_jobs_real_jsearch():
+async def test_search_jobs_from_local_rag_store():
     """
-    Integration test: Hits JSearch API (if key is valid) or Arbeitnow.
+    Integration test: queries jobs from local pgvector store.
     """
-    if not os.getenv("RAPIDAPI_KEY"):
-        pytest.skip("RAPIDAPI_KEY not set in .env")
+    if os.getenv("ALLOW_DUMMY_JOBS", "false").lower() not in {"1", "true", "yes", "on"}:
+        pytest.skip("Set ALLOW_DUMMY_JOBS=true (or backfill your DB) for this integration test.")
 
     role_name = "Backend Developer"
     skills = ["Python", "FastAPI"]

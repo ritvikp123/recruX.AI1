@@ -1,21 +1,13 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { searchJSearchJobs } from "../lib/jsearch";
+import { searchJobs } from "../lib/api";
+import { mapJobListingToJob } from "../lib/jobListingMap";
 import { applyJob, removeSavedJob, saveJob, fetchSavedJobs, fetchAppliedJobs } from "../lib/savedJobsApi";
 import type { Job } from "../types/job";
 import { supabase } from "../lib/supabase";
-import { buildMockDashboardJobs, isMockJobId } from "../lib/mockJobs";
+import { isMockJobId } from "../lib/mockJobs";
 
 type MatchFn = (resumeText: string | undefined, job: Job) => number;
-
-function isMissingJSearchKeyError(err: unknown): boolean {
-  const msg = err instanceof Error ? err.message : String(err ?? "");
-  return msg.toLowerCase().includes("missing vite_rapidapi_key") || msg.toLowerCase().includes("missing vite_jsearch_api_key");
-}
-
-function isDev(): boolean {
-  return typeof import.meta !== "undefined" && (import.meta as any).env?.DEV === true;
-}
 
 interface JobFilters {
   query: string;
@@ -30,11 +22,8 @@ interface JobState {
   selectedJob: Job | null;
   /** Jobs page search / list */
   jobsLoading: boolean;
-  /** Appending next JSearch page on Jobs */
   jobsLoadingMore: boolean;
-  /** Last fetched JSearch page index (1-based) */
   jobsPage: number;
-  /** Whether another JSearch page may exist */
   jobsHasMore: boolean;
   /** Dashboard “Top matches” preview */
   dashboardLoading: boolean;
@@ -62,7 +51,6 @@ interface JobState {
 
   toggleSaveJob: (job: Job) => void;
   recordApplication: (job: Job) => void;
-  /** Remove demo applications from persisted state and Supabase (dev JSearch fallback). */
   pruneMockApplications: () => void;
   recordRecentView: (job: Job) => void;
 
@@ -185,154 +173,55 @@ export const useJobStore = create<JobState>()(
         };
 
         try {
-          const list = await searchJSearchJobs({
+          const { resumeSkills } = get();
+          const { jobs: listings } = await searchJobs({
             query: filters.query || "Software Engineer",
-            page: nextPage,
-            remoteOnly: filters.remoteOnly,
-            employmentType: filters.employmentType,
+            filters: {
+              skills: resumeSkills.length ? resumeSkills : undefined,
+            },
           });
+          const list = (listings || []).map(mapJobListingToJob);
           return applyList(list);
         } catch (err: unknown) {
-          const missingKey = isMissingJSearchKeyError(err);
-          const allowMock = isDev() && missingKey;
-          if (!allowMock) {
-            const msg =
-              missingKey
-                ? "Jobs search is not configured. Add `VITE_RAPIDAPI_KEY` (or `VITE_JSEARCH_API_KEY`) to `frontend/.env`, then restart `npm run dev`."
-                : `Jobs search failed. ${err instanceof Error ? err.message : "Check your network / RapidAPI quota."}`;
-            if (!append) {
-              set({
-                jobs: [],
-                jobsLoading: false,
-                jobsLoadingMore: false,
-                jobsHasMore: false,
-                jobsPage: 1,
-                error: msg,
-              });
-              return [];
-            }
-            set({ jobsLoading: false, jobsLoadingMore: false, error: msg });
-            return get().jobs;
+          const msg =
+            err instanceof Error
+              ? err.message
+              : "Could not load jobs from the server.";
+          const hint =
+            " Ensure the backend is running (`VITE_API_URL`, default http://localhost:8001), PostgreSQL + pgvector has indexed jobs (`POST /api/jobs/ingest` or backfill script), and embeddings match your query.";
+          if (!append) {
+            set({
+              jobs: [],
+              jobsLoading: false,
+              jobsLoadingMore: false,
+              jobsHasMore: false,
+              jobsPage: 1,
+              error: `${msg}${hint}`,
+            });
+            return [];
           }
-
-          if (nextPage > 5) {
-            return applyList([]);
-          }
-
-          // Dev-only fallback: if the API key is missing, generate sample jobs
-          // so the UI stays usable during local development.
-          const query = (filters.query || "Software Engineer").trim();
-          const loc = (filters.location || "").trim();
-          const employmentType = (filters.employmentType || "").trim();
-          const remoteOnly = !!filters.remoteOnly;
-
-          const roleSlug = query
-            .split(/\s+/)
-            .filter(Boolean)
-            .slice(0, 3)
-            .join(" ");
-
-          const typeLabel =
-            employmentType === "FULLTIME"
-              ? "Full-time"
-              : employmentType === "CONTRACTOR"
-                ? "Contract"
-                : employmentType === "PARTTIME"
-                  ? "Part-time"
-                  : employmentType === "INTERN"
-                    ? "Intern"
-                    : "";
-
-          const companies = [
-            "Northwind Labs",
-            "Aurora Systems",
-            "Contoso Analytics",
-            "Globex Tech",
-            "Initech",
-            "Soylent Engineering",
-          ];
-
-          const modeOrder = remoteOnly ? (["REMOTE"] as const) : (["REMOTE", "HYBRID", "INPERSON"] as const);
-
-          const mkJob = (i: number, mode: (typeof modeOrder)[number]) => {
-            const company = companies[i % companies.length]!;
-            const modeSuffix =
-              mode === "REMOTE" ? "Remote" : mode === "HYBRID" ? "Hybrid" : "On-site";
-            const titleBase = typeLabel ? `${roleSlug} (${typeLabel})` : `${roleSlug}`;
-            const title = `${titleBase} - ${modeSuffix}`;
-
-            const location =
-              mode === "REMOTE"
-                ? "Remote"
-                : loc
-                  ? mode === "HYBRID"
-                    ? `${loc} · Hybrid`
-                    : `${loc}`
-                  : mode === "HYBRID"
-                    ? "United States · Hybrid"
-                    : "United States";
-
-            const description =
-              mode === "HYBRID"
-                ? `Mock listing: This is a hybrid role where you'll collaborate across teams and ship features with measurable impact.`
-                : `Mock listing: You'll build and improve production features, write maintainable code, and iterate based on feedback and outcomes.`;
-
-            const salaryBase = 110000 + ((i % 5) * 15000);
-            const salaryMax = salaryBase + 45000;
-            const salaryMin = salaryBase;
-
-            return {
-              id: `mock-job-${i}-${mode}`,
-              title,
-              company,
-              location,
-              description,
-              applyUrl: undefined,
-              salaryMin,
-              salaryMax,
-              remote: mode === "REMOTE",
-              skills: ["React", "TypeScript", "APIs", "Testing", "System Design"],
-              postedAt: undefined,
-              employerLogo: undefined,
-              matchScore: 0,
-            };
-          };
-
-          const base = (nextPage - 1) * 10;
-          const mockList = Array.from({ length: 10 }, (_, i) => {
-            const idx = base + i;
-            const mode = modeOrder[idx % modeOrder.length]!;
-            return mkJob(idx, mode);
-          });
-
-          set({
-            error:
-              "Using demo jobs because `VITE_RAPIDAPI_KEY` (or `VITE_JSEARCH_API_KEY`) is missing. Add it to `frontend/.env` and restart to fetch real listings.",
-          });
-          return applyList(mockList);
+          set({ jobsLoading: false, jobsLoadingMore: false, error: `${msg}${hint}` });
+          return get().jobs;
         }
       },
 
       fetchDashboardPreview: async (computeMatch) => {
-        const { resumeText, filters } = get();
+        const { resumeText, filters, resumeSkills } = get();
         set({ dashboardLoading: true, error: null });
-        const dashboardMock = () =>
-          buildMockDashboardJobs({
-            baseTitle: filters.query || "Software Engineer",
-            remoteOnly: filters.remoteOnly,
-          });
         try {
-          const list = await searchJSearchJobs({
+          const { jobs: listings } = await searchJobs({
             query: filters.query || "Software Engineer",
-            page: 1,
-            remoteOnly: filters.remoteOnly,
-            employmentType: filters.employmentType,
+            filters: {
+              skills: resumeSkills.length ? resumeSkills : undefined,
+            },
           });
+          const list = (listings || []).map(mapJobListingToJob);
           if (list.length === 0) {
             set({
-              dashboardJobs: dashboardMock(),
+              dashboardJobs: [],
               dashboardLoading: false,
-              error: "Showing demo jobs for now because the live search returned no roles.",
+              error:
+                "No indexed jobs yet. Ingest roles via the backend (e.g. POST /api/jobs/ingest) or run the backfill script, then open Jobs and run search.",
             });
             return;
           }
@@ -342,14 +231,11 @@ export const useJobStore = create<JobState>()(
           }));
           set({ dashboardJobs: withScores, dashboardLoading: false, error: null });
         } catch (err: unknown) {
-          const missingKey = isMissingJSearchKeyError(err);
-          const msg = missingKey
-            ? "Using demo jobs for now because `VITE_RAPIDAPI_KEY` (or `VITE_JSEARCH_API_KEY`) is missing."
-            : `Using demo jobs for now because live preview failed. ${err instanceof Error ? err.message : "Check your network / RapidAPI quota."}`;
+          const msg = err instanceof Error ? err.message : "Dashboard job preview failed.";
           set({
-            dashboardJobs: dashboardMock(),
+            dashboardJobs: [],
             dashboardLoading: false,
-            error: msg,
+            error: `${msg} Check VITE_API_URL and that the backend RAG index is available.`,
           });
         }
       },

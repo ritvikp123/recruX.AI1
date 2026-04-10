@@ -32,7 +32,9 @@ export function ResumeOptimizer() {
   const setResumeSkills = useJobStore((s) => s.setResumeSkills);
   const resumeText = useJobStore((s) => s.resumeText);
   const [tab, setTab] = useState<"optimize" | "why">("optimize");
-  const [file, setFile] = useState<File | null>(null);
+  const [lastSelectedFileName, setLastSelectedFileName] = useState("");
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [jobDescription, setJobDescription] = useState("");
   const [optimized, setOptimized] = useState("");
@@ -43,6 +45,9 @@ export function ResumeOptimizer() {
   const [parsedSummary, setParsedSummary] = useState("");
   const [parsedExperience, setParsedExperience] = useState("");
   const [parsedSkills, setParsedSkills] = useState("");
+  const [parsedRawText, setParsedRawText] = useState("");
+  const [previewFileUrl, setPreviewFileUrl] = useState("");
+  const [previewFileName, setPreviewFileName] = useState("");
   const [showResumePreview, setShowResumePreview] = useState(false);
   const [resumeLibrary, setResumeLibrary] = useState<StoredResume[]>([]);
 
@@ -62,6 +67,9 @@ export function ResumeOptimizer() {
     setParsedSummary("");
     setParsedExperience("");
     setParsedSkills("");
+    setParsedRawText("");
+    setPreviewFileUrl("");
+    setPreviewFileName("");
     setOptimized("");
     setWhyText("");
     setTailorError(null);
@@ -121,6 +129,33 @@ export function ResumeOptimizer() {
     }
   };
 
+  const openResumePreview = async (entry: StoredResume) => {
+    const fallbackText = sanitizeResumeText(entry.rawText || "").slice(0, 1200);
+    const summary = (entry.summary || "").trim() || "No summary found.";
+    const experience = (entry.experience || "").trim() || fallbackText || "No experience extracted.";
+    const skillsText =
+      (entry.skillsText || "").trim() ||
+      (Array.isArray(entry.skills) && entry.skills.length ? entry.skills.join(", ") : "No skills extracted.");
+    const rawText = sanitizeResumeText(entry.rawText || "").trim();
+
+    setParsedSummary(summary);
+    setParsedExperience(experience);
+    setParsedSkills(skillsText);
+    setParsedRawText(rawText || experience);
+    setPreviewFileName(entry.fileName || "");
+    setPreviewFileUrl("");
+    if (entry.storagePath) {
+      try {
+        const { data } = await supabase.storage.from("resumes").createSignedUrl(entry.storagePath, 60 * 60);
+        setPreviewFileUrl(data?.signedUrl || "");
+      } catch {
+        setPreviewFileUrl("");
+      }
+    }
+    setShowResumePreview(true);
+    void applyResumeToSession(entry);
+  };
+
   const setPrimaryResume = async (resumeId: string) => {
     const entry = resumeLibrary.find((r) => r.id === resumeId);
     if (!entry) return;
@@ -146,6 +181,9 @@ export function ResumeOptimizer() {
       setParsedSummary("");
       setParsedExperience("");
       setParsedSkills("");
+      setParsedRawText("");
+      setPreviewFileUrl("");
+      setPreviewFileName("");
       if (user?.id) {
         await supabase.from("profiles").upsert({
           id: user.id,
@@ -208,9 +246,14 @@ export function ResumeOptimizer() {
     }
   };
 
-  const handleUpload = async () => {
-    if (!file || !user) {
-      alert("Sign in and pick a PDF first.");
+  const handleUpload = async (selectedFile: File | null) => {
+    if (!selectedFile || !user) {
+      alert("Sign in and choose a PDF or Word file first.");
+      return;
+    }
+    const maxBytes = 10 * 1024 * 1024;
+    if (selectedFile.size > maxBytes) {
+      alert("File must be 10MB or smaller.");
       return;
     }
     if (resumeLibrary.length >= MAX_STORED_RESUMES) {
@@ -219,8 +262,8 @@ export function ResumeOptimizer() {
     }
     setUploading(true);
     try {
-      const path = `${user.id}/${Date.now()}-${sanitizeFileName(file.name)}`;
-      const { error } = await supabase.storage.from("resumes").upload(path, file, {
+      const path = `${user.id}/${Date.now()}-${sanitizeFileName(selectedFile.name)}`;
+      const { error } = await supabase.storage.from("resumes").upload(path, selectedFile, {
         upsert: false,
       });
       if (error) throw error;
@@ -229,10 +272,10 @@ export function ResumeOptimizer() {
       let experience = "";
       let skillsText = "";
       let mergedSkills: string[] = [];
-      const ext = file.name.split(".").pop()?.toLowerCase();
+      const ext = selectedFile.name.split(".").pop()?.toLowerCase();
       if (ext === "pdf" || ext === "docx") {
         try {
-          const data = await parseResume(file);
+          const data = await parseResume(selectedFile);
           const parseLooksBroken =
             (data?.professional_summary || "").trim() === "Error parsing resume content." ||
             // When Ollama is down, backend returns minimal fallback with empty skills.
@@ -261,11 +304,12 @@ export function ResumeOptimizer() {
             : "";
           experience = exp || "No experience extracted.";
           setParsedExperience(experience);
+          setParsedRawText(text || experience);
 
           // Option B: merge LLM skills with deterministic keyword extract so we don't miss items.
           let extractedSkills: string[] = [];
           try {
-            const extracted = await extractResumeFast(file);
+            const extracted = await extractResumeFast(selectedFile);
             extractedSkills = Array.isArray(extracted?.skills) ? extracted.skills : [];
           } catch {
             // ignore extract failure; keep parse skills
@@ -294,7 +338,7 @@ export function ResumeOptimizer() {
         } catch (err: unknown) {
           // Fallback: extract raw text + keyword skills without requiring Ollama.
           try {
-            const extracted = await extractResumeFast(file);
+            const extracted = await extractResumeFast(selectedFile);
             text = sanitizeResumeText(extracted?.raw_text || "");
             setResumeText(text);
             summary = "AI parsing unavailable; using fast extract (raw text + keyword skills).";
@@ -304,6 +348,7 @@ export function ResumeOptimizer() {
             setParsedSummary(summary);
             setParsedExperience(experience);
             setParsedSkills(skillsText);
+            setParsedRawText(text || experience);
             setResumeSkills(mergedSkills);
             await supabase.from("profiles").upsert({
               id: user.id,
@@ -320,7 +365,7 @@ export function ResumeOptimizer() {
       if (!text) setResumeText("Resume uploaded.");
       const entry: StoredResume = {
         id: `resume-${Date.now()}`,
-        fileName: file.name,
+        fileName: selectedFile.name,
         uploadedAt: new Date().toISOString(),
         storagePath: path,
         rawText: text,
@@ -332,6 +377,9 @@ export function ResumeOptimizer() {
       };
       const next = [entry, ...resumeLibrary.map((r) => ({ ...r, isPrimary: false }))].slice(0, MAX_STORED_RESUMES);
       saveLibrary(next);
+      setLastSelectedFileName(selectedFile.name);
+      setShowUploadModal(false);
+      setPendingFile(null);
       alert("Resume uploaded successfully.");
       setShowResumePreview(true);
     } catch (e: unknown) {
@@ -367,12 +415,191 @@ export function ResumeOptimizer() {
         overflow: "hidden",
         display: "flex",
         flexDirection: "column",
+        position: "relative",
       }}
     >
       <div style={{ padding: 20, flex: 1, minHeight: 0, overflowY: "auto" }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: R.darkest, marginBottom: 16 }}>
+        <h1 style={{ fontSize: 22, fontWeight: 700, color: R.darkest, margin: "0 0 16px" }}>
           Resume optimizer
         </h1>
+        <div style={{ position: "absolute", top: 20, right: 20, zIndex: 20 }}>
+          <button
+            type="button"
+            onClick={() => setShowUploadModal(true)}
+            style={{
+              background: R.primary,
+              color: "#fff",
+              border: "none",
+              borderRadius: 8,
+              padding: "8px 16px",
+              fontSize: 12,
+              fontWeight: 500,
+              cursor: "pointer",
+            }}
+          >
+            Add Resume
+          </button>
+        </div>
+        <input
+          id="resume-upload-input"
+          type="file"
+          accept=".pdf,.docx"
+          style={{ display: "none" }}
+          onChange={(e) => {
+            const selected = e.target.files?.[0] || null;
+            setPendingFile(selected);
+            e.currentTarget.value = "";
+          }}
+        />
+
+        {showUploadModal && (
+          <div
+            onClick={() => {
+              setShowUploadModal(false);
+              setPendingFile(null);
+            }}
+            style={{
+              position: "fixed",
+              inset: 0,
+              background: "rgba(2, 6, 23, 0.45)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              zIndex: 1000,
+              padding: 16,
+            }}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                width: "100%",
+                maxWidth: 420,
+                background: R.card,
+                border: panelHairline,
+                borderRadius: 16,
+                padding: 20,
+                position: "relative",
+                boxShadow: "0 4px 28px rgba(4, 44, 83, 0.1), 0 1px 3px rgba(0, 0, 0, 0.06)",
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  setShowUploadModal(false);
+                  setPendingFile(null);
+                }}
+                style={{
+                  position: "absolute",
+                  top: 12,
+                  right: 12,
+                  width: 32,
+                  height: 32,
+                  borderRadius: 8,
+                  border: panelHairline,
+                  background: R.card,
+                  color: R.deep,
+                  fontSize: 20,
+                  fontWeight: 500,
+                  cursor: "pointer",
+                  lineHeight: 1,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+                aria-label="Close upload modal"
+              >
+                ×
+              </button>
+
+              <h2
+                style={{
+                  margin: "0 36px 14px 0",
+                  fontSize: 20,
+                  lineHeight: 1.25,
+                  fontWeight: 700,
+                  color: R.darkest,
+                }}
+              >
+                Add Your Resume
+              </h2>
+
+              <label
+                htmlFor="resume-upload-input"
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  const f = e.dataTransfer.files?.[0];
+                  if (!f) return;
+                  const ext = f.name.split(".").pop()?.toLowerCase();
+                  if (ext === "pdf" || ext === "docx") setPendingFile(f);
+                }}
+                style={{
+                  display: "block",
+                  borderRadius: 8,
+                  border: `0.5px dashed ${R.border}`,
+                  background: R.light,
+                  padding: "12px 14px",
+                  minHeight: 64,
+                  boxSizing: "border-box",
+                  cursor: "pointer",
+                  userSelect: "none",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{ fontSize: 22, lineHeight: 1, opacity: 0.85 }} aria-hidden>
+                    📄
+                  </span>
+                  <div style={{ minWidth: 0 }}>
+                    <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: R.darkest }}>
+                      Choose or drop a file
+                    </p>
+                    <p style={{ margin: "4px 0 0", fontSize: 11, color: R.deep }}>
+                      PDF or Word · Max 10MB
+                    </p>
+                  </div>
+                </div>
+              </label>
+
+              {pendingFile && (
+                <p
+                  style={{
+                    margin: "10px 0 0",
+                    fontSize: 11,
+                    color: R.deep,
+                    wordBreak: "break-word",
+                  }}
+                >
+                  Selected: <span style={{ color: R.darkest, fontWeight: 600 }}>{pendingFile.name}</span>
+                </p>
+              )}
+              <div style={{ marginTop: 16 }}>
+                <button
+                  type="button"
+                  disabled={!pendingFile || uploading}
+                  onClick={() => void handleUpload(pendingFile)}
+                  style={{
+                    width: "100%",
+                    border: "none",
+                    borderRadius: 8,
+                    background: R.primary,
+                    color: "#fff",
+                    fontSize: 12,
+                    fontWeight: 500,
+                    padding: "8px 16px",
+                    cursor: !pendingFile || uploading ? "not-allowed" : "pointer",
+                    opacity: !pendingFile || uploading ? 0.6 : 1,
+                  }}
+                >
+                  {uploading ? "Uploading…" : "Upload"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div style={{ ...card, marginBottom: 16 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
@@ -388,11 +615,13 @@ export function ResumeOptimizer() {
               {resumeLibrary.map((r) => (
                 <div
                   key={r.id}
+                  onClick={() => void openResumePreview(r)}
                   style={{
                     border: `0.5px solid ${R.border}`,
                     borderRadius: 8,
                     padding: "8px 10px",
                     background: r.isPrimary ? `${R.light}` : R.card,
+                    cursor: "pointer",
                   }}
                 >
                   <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
@@ -407,7 +636,10 @@ export function ResumeOptimizer() {
                       {!r.isPrimary && (
                         <button
                           type="button"
-                          onClick={() => void setPrimaryResume(r.id)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void setPrimaryResume(r.id);
+                          }}
                           style={{
                             border: `0.5px solid ${R.primary}`,
                             background: "transparent",
@@ -423,12 +655,9 @@ export function ResumeOptimizer() {
                       )}
                       <button
                         type="button"
-                        onClick={() => {
-                          setParsedSummary(r.summary || "No summary found.");
-                          setParsedExperience(r.experience || "No experience extracted.");
-                          setParsedSkills(r.skillsText || "No skills extracted.");
-                          setShowResumePreview(true);
-                          void applyResumeToSession(r);
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void openResumePreview(r);
                         }}
                         style={{
                           border: `0.5px solid ${R.border}`,
@@ -444,7 +673,10 @@ export function ResumeOptimizer() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => void removeResume(r.id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void removeResume(r.id);
+                        }}
                         style={{
                           border: "none",
                           background: "transparent",
@@ -465,60 +697,6 @@ export function ResumeOptimizer() {
           )}
         </div>
 
-        <div style={{ ...card, marginBottom: 16 }}>
-          <p style={{ fontSize: 13, fontWeight: 500, color: R.darkest }}>Upload resume (PDF)</p>
-          <input
-            type="file"
-            accept=".pdf,.docx"
-            onChange={(e) => setFile(e.target.files?.[0] || null)}
-            style={{ marginTop: 8, fontSize: 12 }}
-          />
-          <button
-            type="button"
-            onClick={() => void handleUpload()}
-            disabled={uploading}
-            style={{
-              marginTop: 12,
-              background: R.primary,
-              color: "#fff",
-              border: "none",
-              borderRadius: 8,
-              padding: "8px 16px",
-              fontSize: 12,
-              fontWeight: 500,
-              cursor: "pointer",
-              opacity: uploading ? 0.6 : 1,
-            }}
-          >
-            {uploading ? "Uploading…" : "Upload Resume"}
-          </button>
-          {!!resumeText?.trim() && !showResumePreview && (
-            <button
-              type="button"
-              onClick={() => {
-                setShowResumePreview(true);
-                setParsedSummary("Using your saved resume text. Re-upload to re-run full parsing for structured sections.");
-                setParsedSkills("—");
-                setParsedExperience(sanitizeResumeText(resumeText).slice(0, 1200));
-              }}
-              style={{
-                marginTop: 10,
-                marginLeft: 10,
-                background: "transparent",
-                color: R.primary,
-                border: `0.5px solid ${R.primary}`,
-                borderRadius: 8,
-                padding: "8px 14px",
-                fontSize: 12,
-                fontWeight: 500,
-                cursor: "pointer",
-              }}
-            >
-              Preview saved resume
-            </button>
-          )}
-        </div>
-
         <div className="recrux-resume-grid">
           <div style={card}>
             <h2 style={{ fontSize: 13, fontWeight: 500, color: R.darkest, marginBottom: 12 }}>
@@ -526,7 +704,7 @@ export function ResumeOptimizer() {
             </h2>
             {!showResumePreview ? (
               <p style={{ fontSize: 11, color: R.deep, lineHeight: 1.5 }}>
-                Upload a resume (or click “Preview saved resume”) to show parsed sections here.
+                Add a resume (or click “Preview saved resume”) to show parsed sections here.
               </p>
             ) : (
               <>
@@ -552,6 +730,56 @@ export function ResumeOptimizer() {
                   <p style={{ fontSize: 11, fontWeight: 500, color: R.primary }}>Skills</p>
                   <p style={{ fontSize: 11, color: R.deep, marginTop: 4 }}>{parsedSkills}</p>
                 </div>
+                <div style={{ marginTop: 12 }}>
+                  <p style={{ fontSize: 11, fontWeight: 500, color: R.primary }}>Resume text preview</p>
+                  <pre
+                    style={{
+                      fontSize: 11,
+                      color: R.deep,
+                      marginTop: 4,
+                      whiteSpace: "pre-wrap",
+                      fontFamily: "inherit",
+                      maxHeight: 220,
+                      overflowY: "auto",
+                    }}
+                  >
+                    {parsedRawText || "No resume text available."}
+                  </pre>
+                </div>
+                {previewFileUrl && (
+                  <div style={{ marginTop: 12 }}>
+                    <p style={{ fontSize: 11, fontWeight: 500, color: R.primary }}>Uploaded file preview</p>
+                    {previewFileName.toLowerCase().endsWith(".pdf") ? (
+                      <iframe
+                        title="Resume file preview"
+                        src={previewFileUrl}
+                        style={{
+                          width: "100%",
+                          minHeight: 320,
+                          border: `0.5px solid ${R.border}`,
+                          borderRadius: 8,
+                          marginTop: 4,
+                          background: "#fff",
+                        }}
+                      />
+                    ) : (
+                      <a
+                        href={previewFileUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{
+                          display: "inline-block",
+                          marginTop: 4,
+                          fontSize: 11,
+                          color: R.primary,
+                          textDecoration: "underline",
+                        }}
+                      >
+                        Open uploaded file
+                      </a>
+                    )}
+                  </div>
+                )}
               </>
             )}
           </div>

@@ -6,7 +6,7 @@ import { Filter, SlidersHorizontal, X } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { useJobStore } from "../store/useJobStore";
 import { supabase } from "../lib/supabase";
-import { JSEARCH_MAX_RESULTS_PER_SEARCH } from "../lib/jsearch";
+import { RAG_JOBS_PER_SEARCH } from "../lib/ragJobs";
 import { computeMatchBreakdown, computeMatchScore, computeSkillGapsFromJob } from "../lib/matchScore";
 import { mapJobToRecruxCard } from "../recrux/mapJobToCard";
 import { R } from "../recrux/theme";
@@ -341,7 +341,7 @@ export function Jobs() {
               Jobs
             </h1>
             <p style={{ fontSize: 14, color: R.body, margin: "8px 0 0", maxWidth: 520, lineHeight: 1.5 }}>
-              Search live listings, then refine by match, company, and more. Roles you mark applied disappear here — see them anytime on{" "}
+              Search your indexed job corpus (RAG over embeddings), then refine by match, company, and more. Roles you mark applied disappear here — see them anytime on{" "}
               <button
                 type="button"
                 onClick={() => navigate("/applied")}
@@ -359,7 +359,7 @@ export function Jobs() {
               >
                 Applied
               </button>
-              . Each search loads at most {JSEARCH_MAX_RESULTS_PER_SEARCH} listings (one API call) to protect your key quota.
+              . Each search returns up to {RAG_JOBS_PER_SEARCH} closest matches from your indexed jobs (one backend request).
             </p>
           </div>
           {jobs.length > 0 && (
@@ -421,7 +421,7 @@ export function Jobs() {
                 Search
               </p>
               <p style={{ margin: "2px 0 0", fontSize: 12, color: R.body }}>
-                One API request per run — up to {JSEARCH_MAX_RESULTS_PER_SEARCH} jobs. Refine below is instant (no extra calls).
+                One request per run — up to {RAG_JOBS_PER_SEARCH} jobs from your vector index. Refine below is client-side (no extra calls).
               </p>
             </div>
           </div>
@@ -653,14 +653,12 @@ export function Jobs() {
           <RecruxEmptyState
             variant="search"
             title="No jobs loaded yet"
-            description="Try a search with different keywords, or check your connection and API key if results stay empty."
-            ctaLabel="Search your first job"
-            onCtaClick={focusSearch}
+            description="Run search with different role keywords, ensure the backend is running and jobs are ingested into pgvector (POST /api/jobs/ingest or backfill script)."
           />
         ) : filtered.length === 0 && allLoadedAreApplied ? (
           <div style={{ display: "flex", flexDirection: "column", gap: 16, alignItems: "center", padding: "24px 12px" }}>
             <p style={{ fontSize: 14, color: R.body, margin: 0, textAlign: "center", maxWidth: 420, lineHeight: 1.55 }}>
-              You’ve applied to every role in this batch ({JSEARCH_MAX_RESULTS_PER_SEARCH} max per search). Run a new search or relax filters to find more.
+              You’ve applied to every role in this batch ({RAG_JOBS_PER_SEARCH} max per search). Run a new search or relax filters to find more.
             </p>
           </div>
         ) : filtered.length === 0 ? (

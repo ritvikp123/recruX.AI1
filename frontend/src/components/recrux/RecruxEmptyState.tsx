@@ -40,7 +40,7 @@ export function RecruxEmptyState({
   variant?: Variant;
   title: string;
   description: string;
-  ctaLabel: string;
+  ctaLabel?: string;
   ctaTo?: string;
   onCtaClick?: () => void;
   compact?: boolean;
@@ -91,17 +91,18 @@ export function RecruxEmptyState({
       >
         {description}
       </p>
-      {ctaTo ? (
-        <Link to={ctaTo} style={ctaStyle}>
-          {ctaLabel}
-          <span aria-hidden>→</span>
-        </Link>
-      ) : (
-        <button type="button" style={ctaStyle} onClick={onCtaClick}>
-          {ctaLabel}
-          <span aria-hidden>→</span>
-        </button>
-      )}
+      {ctaLabel &&
+        (ctaTo ? (
+          <Link to={ctaTo} style={ctaStyle}>
+            {ctaLabel}
+            <span aria-hidden>→</span>
+          </Link>
+        ) : (
+          <button type="button" style={ctaStyle} onClick={onCtaClick}>
+            {ctaLabel}
+            <span aria-hidden>→</span>
+          </button>
+        ))}
     </>
   );
 

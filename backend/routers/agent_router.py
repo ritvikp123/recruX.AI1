@@ -26,7 +26,7 @@ from agents.job_search_agent import search_jobs
 from agents.job_match_agent import score_jobs
 from agents.resume_tailor_agent import explain_resume_gap, optimize_resume_for_job
 from utils.file_parser import extract_text_from_file
-from utils.database import save_profile, get_profile, SessionLocal, Job
+from utils.database import save_profile, get_profile, get_latest_profile, SessionLocal, Job
 from utils.llm_factory import get_llm
 from utils.vector_db import store_job_vectors
 from utils.auth_utils import get_current_user_id
@@ -543,6 +543,16 @@ async def calculate_scores(body: JobScoreRequest, user_id: str = Depends(get_cur
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.get("/profile/me", tags=["User Profile"])
+async def fetch_my_profile(user_id: str = Depends(get_current_user_id)):
+    """
+    Fetch the latest parsed user profile from Google Cloud SQL.
+    """
+    profile = get_latest_profile(user_id)
+    if not profile:
+        raise HTTPException(status_code=404, detail="Profile not found")
+    return profile
+
 @router.post("/chat", response_model=ChatResponse, tags=["AI Assistant"])
 async def chat_with_assistant(request: ChatRequest, user_id: str = Depends(get_current_user_id)):
     """
@@ -601,12 +611,12 @@ If no resume, user_has mostly false and readiness about 15-35 unless the goal im
         return _fallback_roadmap_payload(goal, resume)
 
 
-@router.get("/profile/{profile_id}", tags=["User Profile"])
-async def fetch_user_profile(profile_id: str, user_id: str = Depends(get_current_user_id)):
+@router.get("/profile/me", tags=["User Profile"])
+async def fetch_my_profile(user_id: str = Depends(get_current_user_id)):
     """
-    Fetch a stored user profile from SQLite.
+    Fetch the latest parsed user profile from Google Cloud SQL.
     """
-    profile = get_profile(profile_id, user_id)
+    profile = get_latest_profile(user_id)
     if not profile:
         raise HTTPException(status_code=404, detail="Profile not found")
     return profile

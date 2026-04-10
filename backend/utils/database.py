@@ -160,6 +160,30 @@ def get_profile(profile_id: str, user_id: str):
     finally:
         db.close()
 
+def get_latest_profile(user_id: str):
+    db = SessionLocal()
+    try:
+        profile = db.query(Profile).filter(Profile.user_id == uuid.UUID(user_id)).order_by(Profile.created_at.desc()).first()
+        if profile:
+            return {
+                "id": str(profile.id),
+                "full_name": profile.full_name,
+                "email": profile.email,
+                "phone": profile.phone,
+                "links": profile.links,
+                "professional_summary": profile.professional_summary,
+                "skills": profile.skills,
+                "experience": profile.experience,
+                "projects": profile.projects,
+                "education": profile.education,
+                "ats_score": profile.ats_score,
+                "raw_text": profile.raw_text,
+                "role_name": profile.role_name
+            }
+        return None
+    finally:
+        db.close()
+
 def save_jobs_batch(job_listings: list):
     db = SessionLocal()
     try:

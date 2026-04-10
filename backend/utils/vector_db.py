@@ -45,9 +45,10 @@ def store_job_vectors(job_listings: list):
     finally:
         db.close()
 
-def query_similar_jobs(text_query: str, n_results: int = 5):
+def query_similar_jobs(text_query: str, n_results: int = 5, return_raw: bool = False):
     """
     Retrieves top N job descriptions similar to the query using pgvector distance.
+    If return_raw is True, returns exactly the SQLAlchemy Job models instead of LangChain Documents.
     """
     embedding = embeddings_model.embed_query(text_query)
     db = SessionLocal()
@@ -61,6 +62,9 @@ def query_similar_jobs(text_query: str, n_results: int = 5):
             .all()
         )
         
+        if return_raw:
+            return results
+            
         # Convert to LangChain Document format for compatibility with chat_agent.py
         from langchain_core.documents import Document
         docs = [

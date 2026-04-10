@@ -8,6 +8,7 @@ import sys
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 
 from utils.database import SessionLocal, Job
+from utils.vector_db import store_job_vectors
 
 def fetch_jobs():
     url = "https://www.arbeitnow.com/api/job-board-api"
@@ -23,6 +24,7 @@ def main():
     db = SessionLocal()
     inserted = 0
     duplicates = 0
+    new_jobs_list = []
     try:
         for job_info in jobs_data:
             # Using slug as ID as Arbeitnow provides unique slugs
@@ -56,10 +58,17 @@ def main():
                 skills_required=tags
             )
             db.add(new_job)
+            new_jobs_list.append(new_job)
             inserted += 1
             
         db.commit()
         print(f"Backfill complete! Inserted {inserted} new jobs. Skipped {duplicates} duplicates.")
+        
+        if new_jobs_list:
+            print("Calculating mathematical embeddings for the new jobs. This may take a minute...")
+            store_job_vectors(new_jobs_list)
+            print("✅ Vectors calculated and saved to PGVector!")
+            
     except Exception as e:
         print(f"Error during backfill: {e}")
         db.rollback()

@@ -164,17 +164,17 @@ def get_embeddings():
         print("[LLM LOG] Embeddings=dummy dims=1536")
         return _DummyEmbeddings(dims=1536)
     if provider in {"vertex", "vertexai", "google-vertex", "google_vertex"}:
-        from langchain_google_genai import GoogleGenerativeAIEmbeddings
+        from langchain_google_vertexai import VertexAIEmbeddings
 
         project = (os.getenv("VERTEX_PROJECT") or os.getenv("GOOGLE_CLOUD_PROJECT") or "").strip().strip('"').strip("'")
         location = (os.getenv("VERTEX_LOCATION") or os.getenv("GOOGLE_CLOUD_LOCATION") or "us-central1").strip().strip('"').strip("'")
         model = (os.getenv("VERTEX_EMBED_MODEL") or "text-embedding-004").strip().strip('"').strip("'")
         print(f"[LLM LOG] Embeddings=vertex model={model} Location={location} Project={project or '(adc)'}")
-        # GoogleGenerativeAIEmbeddings auto-detects ADC on Cloud Run (no API key needed)
-        kwargs: dict = {"model": f"models/{model}"}
+        
+        kwargs: dict = {"model_name": model, "location": location}
         if project:
             kwargs["project"] = project
-        return GoogleGenerativeAIEmbeddings(**kwargs)
+        return VertexAIEmbeddings(**kwargs)
     if provider in {"gemini", "google", "google-genai", "google_genai"}:
         # Only enable if you explicitly set this; otherwise default stays Ollama/dummy.
         from langchain_google_genai import GoogleGenerativeAIEmbeddings

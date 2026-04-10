@@ -48,7 +48,7 @@ Provide the response in the specified structured format.
 """
 
 
-async def process_resume(resume_text: str) -> ResumeParseOutput:
+async def process_resume(resume_text: str, user_id: str) -> ResumeParseOutput:
     """
     Takes raw resume text and uses Gemini to extract standardized sections and an ATS score.
     Returns a ResumeParseOutput object.
@@ -64,7 +64,7 @@ async def process_resume(resume_text: str) -> ResumeParseOutput:
         # --- STORAGE INTEGRATION ---
         # 2. Save structured data to SQLite/Postgres
         from utils.database import save_profile
-        profile_id = save_profile(result.model_dump(), "Software Engineer") # Default role
+        profile_id = save_profile(result.model_dump(), "Software Engineer", user_id) # Default role
         
         # 1. Save to Vector DB for semantic searching
         from utils.vector_db import store_resume_vector

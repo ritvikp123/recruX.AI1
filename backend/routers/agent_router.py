@@ -366,7 +366,7 @@ async def parse_resume(file: UploadFile = File(...), user_id: str = Depends(get_
         print(f"[API LOG] Extracted text length: {len(text)} characters.")
         
         # Pass to Resume Agent
-        result = await process_resume(text)
+        result = await process_resume(text, user_id)
         print(f"[API LOG] Agent result summary: {result.professional_summary[:50]}...")
         return result
     except Exception as e:

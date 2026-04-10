@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { searchJSearchJobs } from "../lib/jsearch";
 import { searchJobs } from "../lib/api";
 import { mapJobListingToJob } from "../lib/jobListingMap";
 import { applyJob, removeSavedJob, saveJob, fetchSavedJobs, fetchAppliedJobs } from "../lib/savedJobsApi";
@@ -174,13 +174,12 @@ export const useJobStore = create<JobState>()(
 
         try {
           const { resumeSkills } = get();
-          const { jobs: listings } = await searchJobs({
+          const list = await searchJSearchJobs({
             query: filters.query || "Software Engineer",
-            filters: {
-              skills: resumeSkills.length ? resumeSkills : undefined,
-            },
+            remoteOnly: filters.remoteOnly,
+            employmentType: filters.employmentType,
+            page: nextPage
           });
-          const list = (listings || []).map(mapJobListingToJob);
           return applyList(list);
         } catch (err: unknown) {
           const msg =

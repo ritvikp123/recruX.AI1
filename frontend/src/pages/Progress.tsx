@@ -210,22 +210,14 @@ export function Progress() {
 
   const [dbApps, setDbApps] = useState<DbApplicationRow[] | null>(null);
   const [dbReady, setDbReady] = useState(false);
-  const [persistReady, setPersistReady] = useState(() => {
-    try {
-      return useJobStore.persist.hasHydrated();
-    } catch {
-      return true;
-    }
-  });
+  const [persistReady, setPersistReady] = useState(true);
 
   useEffect(() => {
     pruneMockApplications();
   }, [pruneMockApplications]);
 
   useEffect(() => {
-    const unsub = useJobStore.persist.onFinishHydration(() => setPersistReady(true));
-    if (useJobStore.persist.hasHydrated()) setPersistReady(true);
-    return unsub;
+    // Isolated data logic
   }, []);
 
   useEffect(() => {

@@ -49,7 +49,7 @@ def get_llm(temperature=0.1, num_predict=None, client_kwargs=None):
 
         project = (os.getenv("VERTEX_PROJECT") or os.getenv("GOOGLE_CLOUD_PROJECT") or "").strip().strip('"').strip("'")
         location = (os.getenv("VERTEX_LOCATION") or os.getenv("GOOGLE_CLOUD_LOCATION") or "us-central1").strip().strip('"').strip("'")
-        model = (os.getenv("VERTEX_MODEL") or "gemini-2.5-flash").strip().strip('"').strip("'")
+        model = (os.getenv("VERTEX_MODEL") or "gemini-1.5-flash").strip().strip('"').strip("'")
         print(f"[LLM LOG] Provider=vertex Model={model} Location={location} Project={project or '(adc)'}")
         kwargs: dict = {"model_name": model, "temperature": temperature, "location": location}
         if project:
@@ -64,7 +64,7 @@ def get_llm(temperature=0.1, num_predict=None, client_kwargs=None):
         api_key = _gemini_api_key()
         if not api_key:
             raise RuntimeError("GEMINI_API_KEY (or GOOGLE_API_KEY) is required when LLM_PROVIDER=gemini")
-        model = (os.getenv("GEMINI_MODEL") or os.getenv("GOOGLE_MODEL") or "gemini-2.5-flash").strip().strip('"').strip("'")
+        model = (os.getenv("GEMINI_MODEL") or os.getenv("GOOGLE_MODEL") or "gemini-1.5-flash").strip().strip('"').strip("'")
         print(f"[LLM LOG] Provider=gemini Model={model}")
         kwargs: dict = {"model": model, "temperature": temperature, "google_api_key": api_key}
         # ChatGoogleGenerativeAI uses max_output_tokens
@@ -106,7 +106,7 @@ def get_llm_prose(temperature=0.35, num_predict=None, client_kwargs=None):
 
         project = (os.getenv("VERTEX_PROJECT") or os.getenv("GOOGLE_CLOUD_PROJECT") or "").strip().strip('"').strip("'")
         location = (os.getenv("VERTEX_LOCATION") or os.getenv("GOOGLE_CLOUD_LOCATION") or "us-central1").strip().strip('"').strip("'")
-        model = (os.getenv("VERTEX_MODEL") or "gemini-2.5-flash").strip().strip('"').strip("'")
+        model = (os.getenv("VERTEX_MODEL") or "gemini-1.5-flash").strip().strip('"').strip("'")
         print(f"[LLM LOG] Provider=vertex Model={model} (prose) Location={location} Project={project or '(adc)'}")
         kwargs: dict = {"model_name": model, "temperature": temperature, "location": location}
         if project:
@@ -120,7 +120,7 @@ def get_llm_prose(temperature=0.35, num_predict=None, client_kwargs=None):
         api_key = _gemini_api_key()
         if not api_key:
             raise RuntimeError("GEMINI_API_KEY (or GOOGLE_API_KEY) is required when LLM_PROVIDER=gemini")
-        model = (os.getenv("GEMINI_MODEL") or os.getenv("GOOGLE_MODEL") or "gemini-2.5-flash").strip().strip('"').strip("'")
+        model = (os.getenv("GEMINI_MODEL") or os.getenv("GOOGLE_MODEL") or "gemini-1.5-flash").strip().strip('"').strip("'")
         print(f"[LLM LOG] Provider=gemini Model={model} (prose)")
         kwargs: dict = {"model": model, "temperature": temperature, "google_api_key": api_key}
         if num_predict is not None:

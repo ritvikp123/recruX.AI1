@@ -23,8 +23,10 @@ _default_origins = [
     "http://localhost:5181",
     "http://127.0.0.1:5181",
 ]
+import re
 _extra = os.getenv("CORS_ORIGINS", "").strip()
-_origins = _default_origins + [o.strip() for o in _extra.split(",") if o.strip()]
+_extra_list = [o.strip() for o in re.split(r'[,\s]+', _extra) if o.strip()]
+_origins = _default_origins + _extra_list
 print(f"[CORS LOG] Allowed origins: {_origins}")
 
 app.add_middleware(

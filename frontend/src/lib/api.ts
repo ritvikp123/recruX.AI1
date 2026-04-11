@@ -10,6 +10,26 @@ const BASE_URL =
   ((import.meta as any).env?.VITE_API_URL as string | undefined) || "http://localhost:8001";
 const API_PREFIX = `${BASE_URL}/api`;
 
+function explainNetworkFailure(): Error {
+  return new Error(
+    `Could not reach the API at ${BASE_URL}. ` +
+      `Local dev: run the FastAPI server on port 8001 and set VITE_API_URL=http://localhost:8001 in frontend/.env, then restart npm run dev. ` +
+      `Production: set VITE_API_URL to your HTTPS Cloud Run URL in the host (e.g. Vercel) env and redeploy. ` +
+      `Also confirm you are signed in (resume routes require a valid session).`
+  );
+}
+
+async function fetchApi(path: string, init: RequestInit): Promise<Response> {
+  try {
+    return await fetch(`${API_PREFIX}${path}`, init);
+  } catch (e) {
+    if (e instanceof TypeError) {
+      throw explainNetworkFailure();
+    }
+    throw e;
+  }
+}
+
 /** Authorization + optional Content-Type for JSON requests */
 async function getAuthHeaders(omitContentType = false): Promise<Record<string, string>> {
   const headers: Record<string, string> = {};
@@ -59,7 +79,7 @@ async function request<T>(
     ...(await getAuthHeaders(omitContentType ?? false)),
     ...(init.headers as Record<string, string>),
   };
-  const res = await fetch(`${API_PREFIX}${path}`, {
+  const res = await fetchApi(path, {
     ...rest,
     headers,
   });
@@ -91,7 +111,7 @@ export async function parseResume(file: File): Promise<ResumeParseOutput> {
   const form = new FormData();
   form.append("file", file);
   const headers = await getAuthHeaders(true);
-  const res = await fetch(`${API_PREFIX}/resume/parse`, {
+  const res = await fetchApi("/resume/parse", {
     method: "POST",
     headers,
     body: form,
@@ -103,7 +123,7 @@ export async function extractResumeFast(file: File): Promise<ResumeExtractOutput
   const form = new FormData();
   form.append("file", file);
   const headers = await getAuthHeaders(true);
-  const res = await fetch(`${API_PREFIX}/resume/extract`, {
+  const res = await fetchApi("/resume/extract", {
     method: "POST",
     headers,
     body: form,

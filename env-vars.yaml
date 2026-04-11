@@ -4,3 +4,5 @@ VERTEX_LOCATION: us-central1
 VERTEX_MODEL: gemini-1.5-flash
 VERTEX_PROJECT: recruix-backend-prod
 CORS_ORIGINS: "https://recrux.ai,https://www.recrux.ai"
+# Required on Cloud Run for JWT on /api/resume/* (same URL as VITE_SUPABASE_URL, no trailing slash)
+SUPABASE_URL: "https://YOUR_PROJECT_REF.supabase.co"

@@ -281,7 +281,9 @@ export function ResumeOptimizer() {
             // When Ollama is down, backend returns minimal fallback with empty skills.
             (!data?.skills || data.skills.length === 0);
           if (parseLooksBroken) {
-            throw new Error("AI parsing unavailable (check Ollama). Falling back to fast extract.");
+            throw new Error(
+              "AI parsing returned no usable skills (LLM/Vertex error or quota). Falling back to fast extract."
+            );
           }
 
           text = sanitizeResumeText(data?.raw_text || "");

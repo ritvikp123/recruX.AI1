@@ -17,17 +17,29 @@ app = FastAPI(
 
 # CORS: dev origins + optional CORS_ORIGINS (comma-separated) for production, e.g.
 # CORS_ORIGINS=https://www.yoursite.com,https://yoursite.com
+def _normalize_cors_origin_token(raw: str) -> str:
+    """Strip whitespace and stray quote chars (Cloud Console / .env often adds '...' or \"...\")."""
+    o = raw.strip()
+    prev = None
+    while prev != o:
+        prev = o
+        o = o.strip().strip("'\"")
+    return o
+
+
 _default_origins = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
     "http://localhost:5181",
     "http://127.0.0.1:5181",
 ]
-import re
-_extra = os.getenv("CORS_ORIGINS", "").strip()
-_extra_list = [o.strip() for o in re.split(r'[,\s]+', _extra) if o.strip()]
-_origins = _default_origins + _extra_list
-print(f"[CORS LOG] Allowed origins: {_origins}")
+_extra_raw = os.getenv("CORS_ORIGINS", "")
+# Whole value may be wrapped in quotes; then comma-separated origins.
+_extra = _normalize_cors_origin_token(_extra_raw)
+_parsed = [_normalize_cors_origin_token(o) for o in _extra.split(",") if _normalize_cors_origin_token(o)]
+_origins = list(dict.fromkeys(_default_origins + _parsed))
+if os.getenv("CORS_DEBUG", "").strip().lower() in ("1", "true", "yes"):
+    print(f"[CORS] allow_origins={_origins}")
 
 app.add_middleware(
     CORSMiddleware,

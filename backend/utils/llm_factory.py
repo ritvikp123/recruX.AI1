@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 
 # Load .env from backend dir
 _env_path = Path(__file__).resolve().parent.parent / ".env"
-load_dotenv(dotenv_path=_env_path, override=True) # Ensure it takes precedence over shell vars
+load_dotenv(dotenv_path=_env_path, override=False) # Ensure it takes precedence over shell vars
 
 
 def _norm_provider(v: str | None, default: str) -> str:

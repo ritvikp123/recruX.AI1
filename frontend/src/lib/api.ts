@@ -1,21 +1,37 @@
 /**
- * Centralized API client for the Recruix backend.
- * Base URL: VITE_API_URL (defaults to http://localhost:8001)
- * Attaches Supabase session JWT (Bearer) on every request via getSession().
+ * Centralized API client for the Recrux backend.
+ *
+ * Dev (`npm run dev`): same-origin `/api/...` → Vite proxy → localhost:8001 (vite.config.ts).
+ * Ignores VITE_API_URL so a leftover Cloud Run URL cannot break local dev.
+ * Set VITE_API_DIRECT=true to use VITE_API_URL in dev (e.g. test production API).
+ *
+ * Production build: uses VITE_API_URL (e.g. Cloud Run HTTPS).
  */
 
 import { supabase } from "./supabase";
 
-const BASE_URL =
-  ((import.meta as any).env?.VITE_API_URL as string | undefined) || "http://localhost:8001";
-const API_PREFIX = `${BASE_URL}/api`;
+const env = import.meta.env as Record<string, string | boolean | undefined>;
+const useDevProxy = Boolean(env.DEV) && env.VITE_API_DIRECT !== "true";
+
+function resolvedApiOrigin(): string {
+  if (useDevProxy) return "";
+  const raw = (env.VITE_API_URL as string | undefined)?.trim();
+  return raw && raw.length > 0 ? raw.replace(/\/$/, "") : "http://localhost:8001";
+}
+
+const API_ORIGIN = resolvedApiOrigin();
+const API_PREFIX = API_ORIGIN ? `${API_ORIGIN}/api` : "/api";
 
 function explainNetworkFailure(): Error {
+  const where = useDevProxy
+    ? "http://localhost:8001 (dev: /api is proxied by Vite)"
+    : API_ORIGIN || "http://localhost:8001";
   return new Error(
-    `Could not reach the API at ${BASE_URL}. ` +
-      `Local dev: run the FastAPI server on port 8001 and set VITE_API_URL=http://localhost:8001 in frontend/.env, then restart npm run dev. ` +
-      `Production: set VITE_API_URL to your HTTPS Cloud Run URL in the host (e.g. Vercel) env and redeploy. ` +
-      `Also confirm you are signed in (resume routes require a valid session).`
+    `Could not reach the API (${where}). ` +
+      (useDevProxy
+        ? "Start backend: cd backend && source .venv/bin/activate && python -m uvicorn main:app --reload --port 8001. "
+        : "Set VITE_API_URL on your host (e.g. Vercel) and redeploy. ") +
+      "Sign in for resume routes. From dev, to call Cloud Run: VITE_API_DIRECT=true and VITE_API_URL=<run.app>, restart npm run dev."
   );
 }
 
@@ -84,6 +100,11 @@ async function request<T>(
     headers,
   });
   return handleResponse<T>(res);
+}
+
+/** Chat and other callers that build fetch URL manually */
+export function getApiChatUrl(): string {
+  return `${API_PREFIX}/chat`;
 }
 
 // --- Resume ---
@@ -225,4 +246,3 @@ export async function register(data: {
     body: JSON.stringify(data),
   });
 }
-

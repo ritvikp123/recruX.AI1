@@ -4,6 +4,7 @@ import { ChevronDown, ChevronUp, Sparkles } from "lucide-react";
 import { useJobStore } from "../store/useJobStore";
 import { R } from "../recrux/theme";
 import { sanitizeResumeText } from "../lib/resumeSanitize";
+import { getApiChatUrl } from "../lib/api";
 
 type ChatMsg = { role: "user" | "assistant"; content: string };
 
@@ -116,7 +117,6 @@ export function DashboardAIBottomChat() {
     setMessages((m) => [...m, { role: "user", content: t }]);
 
     try {
-      const API_URL = ((import.meta as any).env?.VITE_API_URL as string | undefined) || "http://localhost:8001";
       const headers: Record<string, string> = { "Content-Type": "application/json" };
       const {
         data: { session },
@@ -124,7 +124,7 @@ export function DashboardAIBottomChat() {
       if (session?.access_token) {
         headers["Authorization"] = `Bearer ${session.access_token}`;
       }
-      const res = await fetch(`${API_URL}/api/chat`, {
+      const res = await fetch(getApiChatUrl(), {
         method: "POST",
         headers,
         body: JSON.stringify({

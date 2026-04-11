@@ -328,16 +328,6 @@ _SKILL_KEYWORDS = [
     "redux", "vue", "angular", "django", "flask", "fastapi", "spring",
 ]
 
-@router.options("/resume/parse")
-async def resume_parse_options():
-    """CORS preflight for POST /resume/parse"""
-    return Response(status_code=200)
-
-@router.options("/resume/extract")
-async def resume_extract_options():
-    """CORS preflight for POST /resume/extract"""
-    return Response(status_code=200)
-
 @router.post("/resume/extract", response_model=ResumeExtractOutput, tags=["Agents"])
 async def extract_resume_fast(file: UploadFile = File(...), user_id: str = Depends(get_current_user_id)):
     """
@@ -380,15 +370,6 @@ async def parse_resume(file: UploadFile = File(...), user_id: str = Depends(get_
         print(f"[API ERROR] {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
-
-@router.options("/resume/optimize")
-async def resume_optimize_options():
-    return Response(status_code=200)
-
-
-@router.options("/resume/gap-why")
-async def resume_gap_why_options():
-    return Response(status_code=200)
 
 
 @router.post("/resume/optimize", response_model=ResumeTailorTextResponse, tags=["Agents"])
@@ -440,11 +421,6 @@ async def resume_gap_why(body: ResumeTailorRequest, user_id: str = Depends(get_c
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
-@router.options("/jobs/search")
-async def jobs_search_options():
-    """CORS preflight for POST /jobs/search"""
-    return Response(status_code=200)
 
 @router.post("/jobs/ingest", response_model=JobsIngestResponse, tags=["Agents"])
 async def ingest_jobs(body: JobsIngestRequest, user_id: str = Depends(get_current_user_id)):
@@ -524,11 +500,6 @@ async def find_jobs(request: Request):
         return JobSearchOutput(jobs=jobs)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-@router.options("/jobs/score")
-async def jobs_score_options():
-    """CORS preflight for POST /jobs/score"""
-    return Response(status_code=200)
 
 @router.post("/jobs/score", response_model=JobMatchScoreOutput, tags=["Agents"])
 async def calculate_scores(body: JobScoreRequest, user_id: str = Depends(get_current_user_id)):

@@ -25,6 +25,7 @@ _default_origins = [
 ]
 _extra = os.getenv("CORS_ORIGINS", "").strip()
 _origins = _default_origins + [o.strip() for o in _extra.split(",") if o.strip()]
+print(f"[CORS LOG] Allowed origins: {_origins}")
 
 app.add_middleware(
     CORSMiddleware,

@@ -10,14 +10,32 @@ from utils.database import SessionLocal, Job, Profile
 
 load_dotenv()
 
-# Initialize Embeddings via factory
-embeddings_model = get_embeddings()
+_embeddings_model = None
+
+
+def _embeddings():
+    """Lazy init so FastAPI can boot (e.g. /docs) even if Vertex/Ollama is slow or misconfigured."""
+    global _embeddings_model
+    if _embeddings_model is None:
+        _embeddings_model = get_embeddings()
+    return _embeddings_model
+
+
+class _LazyEmbeddingsProxy:
+    """Scripts (e.g. ingest_jobs) use `embeddings_model.embed_query` without eager Vertex init."""
+
+    def embed_query(self, text: str):
+        return _embeddings().embed_query(text)
+
+
+embeddings_model = _LazyEmbeddingsProxy()
+
 
 def store_resume_vector(resume_id: str, resume_text: str):
     """
     Embeds and stores a resume embedding in the PostgreSQL 'profiles' table.
     """
-    embedding = embeddings_model.embed_query(resume_text)
+    embedding = _embeddings().embed_query(resume_text)
     db = SessionLocal()
     try:
         profile = db.query(Profile).filter(Profile.id == resume_id).first()
@@ -38,7 +56,7 @@ def store_job_vectors(job_listings: list):
             # Check if job exists in DB
             db_job = db.query(Job).filter(Job.id == str(job.id)).first()
             if db_job:
-                embedding = embeddings_model.embed_query(job.job_description[:10000]) # Match ingestion limit
+                embedding = _embeddings().embed_query(job.job_description[:10000])  # Match ingestion limit
                 db_job.embedding = embedding
         db.commit()
         print(f"VectorDB (Postgres): {len(job_listings)} job embeddings stored.")
@@ -50,13 +68,14 @@ def query_similar_jobs(text_query: str, n_results: int = 5, return_raw: bool = F
     Retrieves top N job descriptions similar to the query using pgvector distance.
     If return_raw is True, returns exactly the SQLAlchemy Job models instead of LangChain Documents.
     """
-    embedding = embeddings_model.embed_query(text_query)
+    embedding = _embeddings().embed_query(text_query)
     db = SessionLocal()
     try:
         # Cosine distance <-> (embedding <=> Job.embedding)
         # Note: postgres uses <=> for cosine distance, <-> for Euclidean
         results = (
             db.query(Job)
+            .filter(Job.embedding.isnot(None))
             .order_by(Job.embedding.cosine_distance(embedding))
             .limit(n_results)
             .all()

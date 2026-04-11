@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import React, { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useJobStore } from "../store/useJobStore";
 import { R } from "../recrux/theme";
 import { supabase } from "../lib/supabase";

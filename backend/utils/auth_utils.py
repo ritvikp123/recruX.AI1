@@ -36,9 +36,18 @@ def get_jwks():
     if _JWKS_CACHE is not None:
         return _JWKS_CACHE
 
-    supabase_url = os.getenv("SUPABASE_URL", "").strip().rstrip("/")
+    supabase_url = (
+        os.getenv("SUPABASE_URL", "").strip().rstrip("/")
+        or os.getenv("VITE_SUPABASE_URL", "").strip().rstrip("/")
+    )
     if not supabase_url:
-        raise ValueError("SUPABASE_URL environment variable is missing in .env")
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "SUPABASE_URL is not set. Local: add to backend/.env. "
+                "Cloud Run: set env var SUPABASE_URL on the service (same value as Supabase Settings → API → Project URL, e.g. https://xxxxx.supabase.co)."
+            ),
+        )
         
     jwks_url = f"{supabase_url}/auth/v1/.well-known/jwks.json"
     

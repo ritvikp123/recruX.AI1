@@ -344,14 +344,19 @@ async def extract_resume_fast(file: UploadFile = File(...), user_id: str = Depen
     Fast resume extraction (no LLM). Extracts raw text and skills via keyword matching.
     Use this for quick uploads; use /resume/parse for full AI analysis.
     """
+    print(f"[API LOG] /resume/extract - Received file: {file.filename}")
     try:
         text = await extract_text_from_file(file)
         text_lower = text.lower()
         skills = [kw for kw in _SKILL_KEYWORDS if kw in text_lower]
         # Dedupe and title-case for display
         skills = list(dict.fromkeys(s.title() for s in skills))
+        print(f"[API LOG] /resume/extract - Success. Skills found: {len(skills)}")
         return ResumeExtractOutput(raw_text=text, skills=skills)
     except Exception as e:
+        print(f"[API ERROR] /resume/extract - {str(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/resume/parse", response_model=ResumeParseOutput, tags=["Agents"])
@@ -610,14 +615,4 @@ If no resume, user_has mostly false and readiness about 15-35 unless the goal im
         print(f"[roadmap] LLM failed, using template: {e}")
         return _fallback_roadmap_payload(goal, resume)
 
-
-@router.get("/profile/me", tags=["User Profile"])
-async def fetch_my_profile(user_id: str = Depends(get_current_user_id)):
-    """
-    Fetch the latest parsed user profile from Google Cloud SQL.
-    """
-    profile = get_latest_profile(user_id)
-    if not profile:
-        raise HTTPException(status_code=404, detail="Profile not found")
-    return profile
  

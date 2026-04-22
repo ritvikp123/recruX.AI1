@@ -45,3 +45,6 @@ npm-debug.log*
 
 # Vite
 frontend/node_modules/.vite/
+
+# Local tooling (Cloud SQL proxy binary, etc.)
+.tools/

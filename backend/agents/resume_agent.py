@@ -9,6 +9,40 @@ from utils.llm_factory import get_llm
 # Global placeholders for lazy loading
 _chain = None
 
+
+def _clean_skill_items(skills: list[str] | None) -> list[str]:
+    """
+    Normalize LLM skill output and drop noisy paragraph-like entries.
+    """
+    if not skills:
+        return []
+
+    out: list[str] = []
+    seen: set[str] = set()
+
+    for raw in skills:
+        s = str(raw or "").strip()
+        if not s:
+            continue
+        # LLMs occasionally dump whole lines/sections into skills.
+        if "\n" in s or len(s) > 64:
+            continue
+        if any(tok in s.lower() for tok in ("professional summary", "experience", "education", "project")):
+            continue
+
+        # Split common packed formats: "Python, SQL; Docker"
+        parts = [p.strip() for p in s.replace(";", ",").split(",")]
+        for p in parts:
+            if not p or len(p) > 48:
+                continue
+            key = p.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append(p)
+
+    return out
+
 def get_parsing_chain():
     global _chain
     if _chain is None:
@@ -58,6 +92,7 @@ async def process_resume(resume_text: str, user_id: str) -> ResumeParseOutput:
         chain = get_parsing_chain()
         # Invoke the chain
         result = await chain.ainvoke({"resume_text": resume_text})
+        result.skills = _clean_skill_items(result.skills)
         # Add the raw text to the result object
         result.raw_text = resume_text
         

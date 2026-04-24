@@ -28,6 +28,13 @@ type MatchTab = "high" | "saved" | "recent";
 
 const hairline = `0.5px solid ${R.border}`;
 
+function localYmd(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 function statIconWrap(children: ReactNode) {
   return (
     <div
@@ -57,6 +64,7 @@ export function Dashboard() {
   const savedJobs = useJobStore((s) => s.savedJobs);
   const recentlyViewedJobs = useJobStore((s) => s.recentlyViewedJobs);
   const appliedJobIds = useJobStore((s) => s.appliedJobIds);
+  const appliedJobs = useJobStore((s) => s.appliedJobs);
   const dashboardLoading = useJobStore((s) => s.dashboardLoading);
   const error = useJobStore((s) => s.error);
   const resumeText = useJobStore((s) => s.resumeText);
@@ -161,6 +169,33 @@ export function Dashboard() {
     const sum = dashboardJobs.reduce((a, j) => a + (j.matchScore ?? 0), 0);
     return Math.round(sum / dashboardJobs.length);
   }, [dashboardJobs]);
+
+  const streakDays = useMemo(() => {
+    const timestamps = appliedJobs
+      .map((j) => j.appliedAt)
+      .filter((v): v is string => typeof v === "string" && v.trim().length > 0);
+    if (!timestamps.length) return 0;
+
+    const counts = new Map<string, number>();
+    for (const ts of timestamps) {
+      const d = new Date(ts);
+      if (Number.isNaN(d.getTime())) continue;
+      const k = localYmd(d);
+      counts.set(k, (counts.get(k) ?? 0) + 1);
+    }
+    if (counts.size === 0) return 0;
+
+    let streak = 0;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    for (let i = 0; i < 120; i++) {
+      const d = new Date(today);
+      d.setDate(d.getDate() - i);
+      if ((counts.get(localYmd(d)) ?? 0) > 0) streak += 1;
+      else break;
+    }
+    return streak;
+  }, [appliedJobs]);
 
   const savedIds = useMemo(() => new Set(savedJobs.map((j) => j.id)), [savedJobs]);
 
@@ -364,11 +399,11 @@ export function Dashboard() {
           />
           <RecruxStatCard
             label="Day streak"
-            value="7"
+            value={streakDays}
             valueColor={R.darkest}
             icon={
               <div style={{ paddingTop: 2 }}>
-                <RecruxStreakBar days={7} filled={7} />
+                <RecruxStreakBar days={7} filled={Math.max(0, Math.min(7, streakDays))} />
               </div>
             }
           />

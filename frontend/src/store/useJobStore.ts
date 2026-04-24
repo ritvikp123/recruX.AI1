@@ -183,22 +183,42 @@ export const useJobStore = create<JobState>((set, get) => ({
       const msg =
         err instanceof Error
           ? err.message
-          : "Could not load jobs from the server.";
-      const hint =
-        " Ensure the backend is running (`VITE_API_URL`, default http://localhost:8001), PostgreSQL + pgvector has indexed jobs (`POST /api/jobs/ingest` or backfill script), and embeddings match your query.";
-      if (!append) {
-        set({
-          jobs: [],
-          jobsLoading: false,
-          jobsLoadingMore: false,
-          jobsHasMore: false,
-          jobsPage: 1,
-          error: `${msg}${hint}`,
+          : "Could not load jobs from JSearch.";
+      try {
+        const { resumeSkills } = get();
+        const { jobs: listings } = await searchJobs({
+          query: filters.query || "Software Engineer",
+          filters: {
+            skills: resumeSkills.length ? resumeSkills : undefined,
+          },
         });
-        return [];
+        const mapped = (listings || []).map(mapJobListingToJob);
+        const withFallbackNotice = mapped.map((job) => ({
+          ...job,
+          source: job.source || "recrux-index",
+        }));
+        const applied = applyList(withFallbackNotice);
+        set({
+          error: `${msg} Falling back to indexed jobs from backend.`,
+        });
+        return applied;
+      } catch {
+        const hint =
+          " Ensure the backend is running (`VITE_API_URL`, default http://localhost:8001), PostgreSQL + pgvector has indexed jobs (`POST /api/jobs/ingest` or backfill script), and embeddings match your query.";
+        if (!append) {
+          set({
+            jobs: [],
+            jobsLoading: false,
+            jobsLoadingMore: false,
+            jobsHasMore: false,
+            jobsPage: 1,
+            error: `${msg}${hint}`,
+          });
+          return [];
+        }
+        set({ jobsLoading: false, jobsLoadingMore: false, error: `${msg}${hint}` });
+        return get().jobs;
       }
-      set({ jobsLoading: false, jobsLoadingMore: false, error: `${msg}${hint}` });
-      return get().jobs;
     }
   },
 

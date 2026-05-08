@@ -223,36 +223,59 @@ export const useJobStore = create<JobState>((set, get) => ({
   },
 
   fetchDashboardPreview: async (computeMatch) => {
-    const { resumeText, filters, resumeSkills } = get();
+    const { resumeText, filters, resumeSkills, jobs: cachedJobs } = get();
     set({ dashboardLoading: true, error: null });
+
+    const applyList = (list: Job[]) => {
+      const withScores = list.slice(0, 5).map((j) => ({
+        ...j,
+        matchScore: computeMatch(resumeText, j),
+      }));
+      set({ dashboardJobs: withScores, dashboardLoading: false, error: null });
+    };
+
     try {
+      // Prefer already-loaded Jobs page listings so Dashboard matches what the user sees there.
+      if (Array.isArray(cachedJobs) && cachedJobs.length > 0) {
+        applyList(cachedJobs);
+        return;
+      }
+
+      // Attempt backend indexed/RAG jobs first (if available).
       const { jobs: listings } = await searchJobs({
         query: filters.query || "Software Engineer",
         filters: {
           skills: resumeSkills.length ? resumeSkills : undefined,
         },
       });
-      const list = (listings || []).map(mapJobListingToJob);
-      if (list.length === 0) {
+      const ragList = (listings || []).map(mapJobListingToJob);
+      if (ragList.length > 0) {
+        applyList(ragList);
+        return;
+      }
+
+      // Fall back to the same live listings source as /jobs (JSearch).
+      const live = await searchJSearchJobs({
+        query: filters.query || "Software Engineer",
+        remoteOnly: filters.remoteOnly,
+        employmentType: filters.employmentType,
+        page: 1,
+      });
+      if (live.length === 0) {
         set({
           dashboardJobs: [],
           dashboardLoading: false,
-          error:
-            "No indexed jobs yet. Ingest roles via the backend (e.g. POST /api/jobs/ingest) or run the backfill script, then open Jobs and run search.",
+          error: "No jobs found for your current filters.",
         });
         return;
       }
-      const withScores = list.slice(0, 5).map((j) => ({
-        ...j,
-        matchScore: computeMatch(resumeText, j),
-      }));
-      set({ dashboardJobs: withScores, dashboardLoading: false, error: null });
+      applyList(live);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Dashboard job preview failed.";
       set({
         dashboardJobs: [],
         dashboardLoading: false,
-        error: `${msg} Check VITE_API_URL and that the backend RAG index is available.`,
+        error: msg,
       });
     }
   },

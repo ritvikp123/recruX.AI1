@@ -193,11 +193,7 @@ export const useJobStore = create<JobState>((set, get) => ({
           },
         });
         const mapped = (listings || []).map(mapJobListingToJob);
-        const withFallbackNotice = mapped.map((job) => ({
-          ...job,
-          source: job.source || "recrux-index",
-        }));
-        const applied = applyList(withFallbackNotice);
+        const applied = applyList(mapped);
         set({
           error: `${msg} Falling back to indexed jobs from backend.`,
         });
@@ -234,14 +230,16 @@ export const useJobStore = create<JobState>((set, get) => ({
       set({ dashboardJobs: withScores, dashboardLoading: false, error: null });
     };
 
-    try {
-      // Prefer already-loaded Jobs page listings so Dashboard matches what the user sees there.
-      if (Array.isArray(cachedJobs) && cachedJobs.length > 0) {
-        applyList(cachedJobs);
-        return;
-      }
+    // Prefer already-loaded Jobs page listings so Dashboard matches what the user sees there.
+    if (Array.isArray(cachedJobs) && cachedJobs.length > 0) {
+      applyList(cachedJobs);
+      return;
+    }
 
-      // Attempt backend indexed/RAG jobs first (if available).
+    let backendErr: string | null = null;
+
+    // Attempt backend indexed/RAG jobs first (if available), but do NOT block the dashboard if it's down.
+    try {
       const { jobs: listings } = await searchJobs({
         query: filters.query || "Software Engineer",
         filters: {
@@ -253,29 +251,34 @@ export const useJobStore = create<JobState>((set, get) => ({
         applyList(ragList);
         return;
       }
+    } catch (err: unknown) {
+      backendErr = err instanceof Error ? err.message : "Could not reach the backend.";
+    }
 
-      // Fall back to the same live listings source as /jobs (JSearch).
+    // Fall back to the same live listings source as /jobs (JSearch).
+    try {
       const live = await searchJSearchJobs({
         query: filters.query || "Software Engineer",
         remoteOnly: filters.remoteOnly,
         employmentType: filters.employmentType,
         page: 1,
       });
-      if (live.length === 0) {
-        set({
-          dashboardJobs: [],
-          dashboardLoading: false,
-          error: "No jobs found for your current filters.",
-        });
+      if (live.length > 0) {
+        applyList(live);
         return;
       }
-      applyList(live);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Dashboard job preview failed.";
       set({
         dashboardJobs: [],
         dashboardLoading: false,
-        error: msg,
+        error: "No jobs found for your current filters.",
+      });
+      return;
+    } catch (err: unknown) {
+      const liveErr = err instanceof Error ? err.message : "Could not load live jobs.";
+      set({
+        dashboardJobs: [],
+        dashboardLoading: false,
+        error: backendErr ? `${backendErr}\n\n${liveErr}` : liveErr,
       });
     }
   },

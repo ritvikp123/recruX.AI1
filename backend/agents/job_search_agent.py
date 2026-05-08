@@ -12,6 +12,25 @@ def _truthy_env(name: str, default: str = "false") -> bool:
     v = os.getenv(name, default)
     return str(v).strip().lower() in ("1", "true", "yes", "y", "on")
 
+def _is_production_like() -> bool:
+    """
+    Guardrails: never serve dummy jobs in production.
+    We treat common env vars as signals for prod-like deployments.
+    """
+    env = (
+        os.getenv("ENV", "")
+        or os.getenv("ENVIRONMENT", "")
+        or os.getenv("NODE_ENV", "")
+        or os.getenv("FASTAPI_ENV", "")
+    ).strip().lower()
+    return env in ("prod", "production", "staging")
+
+def _allow_dummy_jobs() -> bool:
+    # Dummy jobs are for local demos only; production must never show fake listings.
+    if _is_production_like():
+        return False
+    return _truthy_env("ALLOW_DUMMY_JOBS", "false")
+
 async def search_jobs(skills: List[str], role_name: str) -> List[JobListing]:
     """
     RAG Pipeline: Retrieves jobs purely offline from the local pgvector database.
@@ -23,8 +42,7 @@ async def search_jobs(skills: List[str], role_name: str) -> List[JobListing]:
         raw_db_jobs = query_similar_jobs(query, n_results=10, return_raw=True)
     except Exception as e:
         print(f"RAG search error (is DB backfilled?): {e}")
-        allow_dummy = _truthy_env("ALLOW_DUMMY_JOBS", "false")
-        if allow_dummy:
+        if _allow_dummy_jobs():
             print("RAG unavailable; falling back to dummy jobs.")
             return _load_dummy_jobs()
         return []
@@ -46,8 +64,7 @@ async def search_jobs(skills: List[str], role_name: str) -> List[JobListing]:
         
     if not jobs:
         print("PGVector returned 0 matched jobs. Is your DB empty?")
-        allow_dummy = _truthy_env("ALLOW_DUMMY_JOBS", "false")
-        if allow_dummy:
+        if _allow_dummy_jobs():
             print("Falling back to dummy jobs.")
             return _load_dummy_jobs()
             

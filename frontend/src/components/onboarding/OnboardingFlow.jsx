@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { Check, ChevronLeft, ChevronRight } from "lucide-react";
 import { R } from "../../recrux/theme";
+import { SiteFooter } from "../SiteFooter";
 
 const DRAFT_KEY = "recrux_onboarding_draft";
 
@@ -614,6 +615,8 @@ export function OnboardingFlow() {
           </div>
         </div>
       </div>
+
+      <SiteFooter />
     </div>
   );
 }

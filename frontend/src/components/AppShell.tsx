@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { Navbar } from "./Navbar";
+import { SiteFooter } from "./SiteFooter";
 import { R } from "../recrux/theme";
 import { useAuth } from "../context/AuthContext";
 
@@ -119,6 +120,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     >
       <Navbar />
       <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>{children}</div>
+      <SiteFooter />
 
       {tutorialOpen && slide && (
         <div

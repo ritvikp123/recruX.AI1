@@ -1,5 +1,7 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { Link } from "react-router-dom";
+import { SiteFooter } from "../components/SiteFooter";
+import { applyLandingPageSeo } from "../lib/pageSeo";
 import {
   ArrowRight,
   BarChart3,
@@ -9,7 +11,10 @@ import {
   FileText,
   Layers,
   Search,
+  Sparkles,
+  Target,
   TrendingUp,
+  Upload,
   Zap,
 } from "lucide-react";
 import { R } from "../recrux/theme";
@@ -87,9 +92,9 @@ function LandingPreviewMatchCard({
           {icon}
         </div>
         <div style={{ minWidth: 0, flex: 1 }}>
-          <p className="recrux-heading" style={{ fontSize: 15, fontWeight: 700, color: R.darkest, margin: 0 }}>
+          <h3 className="recrux-heading" style={{ fontSize: 15, fontWeight: 700, color: R.darkest, margin: 0 }}>
             {title}
-          </p>
+          </h3>
           <p style={{ fontSize: 12, color: R.primary, fontWeight: 500, margin: "3px 0 0" }}>{subtitle}</p>
           <div
             style={{
@@ -144,6 +149,10 @@ function LandingPreviewMatchCard({
 }
 
 export function LandingPage() {
+  useEffect(() => {
+    applyLandingPageSeo();
+  }, []);
+
   return (
     <div style={{ minHeight: "100vh", background: R.bg, position: "relative", overflow: "hidden" }}>
       {/* soft background depth */}
@@ -162,6 +171,7 @@ export function LandingPage() {
       />
 
       <header
+        className="landing-header"
         style={{
           position: "relative",
           zIndex: 2,
@@ -169,7 +179,7 @@ export function LandingPage() {
           height: 56,
           alignItems: "center",
           justifyContent: "space-between",
-          padding: "0 22px",
+          padding: "0 clamp(12px, 4vw, 22px)",
           background: "rgba(255, 255, 255, 0.85)",
           backdropFilter: "blur(10px)",
           borderBottom: hairline,
@@ -181,7 +191,7 @@ export function LandingPage() {
         >
           rec<span style={{ fontStyle: "italic" }}>r</span>ux
         </span>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div className="landing-header-actions" style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
           <Link
             to="/signin"
             style={{
@@ -190,6 +200,7 @@ export function LandingPage() {
               color: R.primary,
               textDecoration: "none",
               padding: "8px 12px",
+              whiteSpace: "nowrap",
             }}
           >
             Sign in
@@ -205,6 +216,7 @@ export function LandingPage() {
               borderRadius: 999,
               textDecoration: "none",
               boxShadow: "0 2px 8px rgba(24, 95, 165, 0.25)",
+              whiteSpace: "nowrap",
             }}
           >
             Get started
@@ -245,7 +257,7 @@ export function LandingPage() {
             <h1
               className="recrux-heading landing-hero-title"
               style={{
-                fontSize: "clamp(32px, 6vw, 44px)",
+                fontSize: "clamp(28px, 6vw, 44px)",
                 fontWeight: 700,
                 color: R.darkest,
                 marginTop: 14,
@@ -254,24 +266,23 @@ export function LandingPage() {
                 letterSpacing: "-0.03em",
               }}
             >
-              Land roles that fit{" "}
+              AI job matching &amp; resume analysis for roles that fit{" "}
               <span style={{ color: R.primary, textDecoration: "underline", textDecorationThickness: 2, textUnderlineOffset: 4 }}>
-                your
-              </span>{" "}
-              resume
+                you
+              </span>
             </h1>
             <p
               className="landing-hero-subtitle"
               style={{
-                fontSize: 17,
+                fontSize: "clamp(15px, 3.8vw, 17px)",
                 color: R.deep,
                 marginTop: 18,
                 marginBottom: 0,
                 lineHeight: 1.55,
               }}
             >
-              Browse live listings, see match scores against your profile, and tune your resume — without juggling ten
-              browser tabs.
+              Run a focused tech job search with skill gap insights—see how listings line up with your resume, then tune
+              bullets and keywords in one workspace.
             </p>
             <div className="landing-hero-cta" style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 28 }}>
               <Link
@@ -341,6 +352,164 @@ export function LandingPage() {
           </div>
         </section>
 
+        {/* How it works */}
+        <section
+          aria-labelledby="how-it-works-heading"
+          style={{
+            maxWidth: 1040,
+            margin: "0 auto",
+            borderTop: hairline,
+            padding: "clamp(40px, 6vw, 56px) 20px clamp(48px, 6vw, 64px)",
+          }}
+        >
+          <h2
+            id="how-it-works-heading"
+            className="recrux-heading"
+            style={{
+              fontSize: "clamp(22px, 4.5vw, 30px)",
+              fontWeight: 700,
+              color: R.darkest,
+              textAlign: "center",
+              margin: "0 auto 12px",
+              letterSpacing: "-0.02em",
+              lineHeight: 1.2,
+            }}
+          >
+            How Recrux.ai Works
+          </h2>
+          <p
+            style={{
+              fontSize: "clamp(15px, 3.5vw, 17px)",
+              fontWeight: 500,
+              color: R.deep,
+              textAlign: "center",
+              margin: "0 auto 10px",
+              maxWidth: 680,
+              lineHeight: 1.55,
+            }}
+          >
+            Upload your resume, let AI analyze your skills, and discover smarter job matches tailored to your experience.
+          </p>
+          <p
+            style={{
+              fontSize: 13,
+              color: R.body,
+              textAlign: "center",
+              margin: "0 auto 0",
+              maxWidth: 640,
+              lineHeight: 1.5,
+            }}
+          >
+            Resume analysis, AI job matching, and personalized recommendations—built for tech careers who want a calmer,
+            clearer search.
+          </p>
+
+          <div className="landing-how-grid">
+            {[
+              {
+                step: 1,
+                title: "Upload Your Resume",
+                description:
+                  "Upload your resume securely and let Recrux.ai analyze your experience, skills, and career background.",
+                icon: <Upload size={22} strokeWidth={2} aria-hidden />,
+              },
+              {
+                step: 2,
+                title: "AI Analyzes Your Profile",
+                description:
+                  "Our AI evaluates your resume, identifies strengths and skill gaps, and matches you with relevant opportunities.",
+                icon: <Sparkles size={22} strokeWidth={2} aria-hidden />,
+              },
+              {
+                step: 3,
+                title: "Get Matched to Better Jobs",
+                description:
+                  "Receive personalized job recommendations designed to align with your skills, goals, and career interests.",
+                icon: <Target size={22} strokeWidth={2} aria-hidden />,
+              },
+            ].map((item) => (
+              <article
+                key={item.step}
+                className="landing-how-card"
+                style={{
+                  position: "relative",
+                  background: R.card,
+                  border: hairline,
+                  borderRadius: 14,
+                  padding: "22px 20px 24px",
+                  boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
+                  minWidth: 0,
+                }}
+              >
+                <span
+                  className="recrux-heading"
+                  aria-label={`Step ${item.step}`}
+                  style={{
+                    position: "absolute",
+                    top: 16,
+                    right: 16,
+                    width: 28,
+                    height: 28,
+                    borderRadius: 8,
+                    background: R.light,
+                    color: R.primary,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  {item.step}
+                </span>
+                <div
+                  style={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: 12,
+                    background: R.light,
+                    color: R.primary,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    marginBottom: 16,
+                  }}
+                >
+                  {item.icon}
+                </div>
+                <h3 className="recrux-heading" style={{ fontSize: 17, fontWeight: 700, color: R.darkest, margin: "0 36px 10px 0", lineHeight: 1.25 }}>
+                  {item.title}
+                </h3>
+                <p style={{ fontSize: 14, color: R.body, margin: 0, lineHeight: 1.55 }}>{item.description}</p>
+              </article>
+            ))}
+          </div>
+
+          <div className="landing-how-cta-wrap" style={{ textAlign: "center", marginTop: 32 }}>
+            <Link
+              to="/get-started"
+              className="landing-how-cta"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
+                fontSize: 15,
+                fontWeight: 600,
+                color: "#fff",
+                background: R.primary,
+                padding: "14px 28px",
+                borderRadius: 999,
+                textDecoration: "none",
+                boxShadow: "0 4px 16px rgba(24, 95, 165, 0.3)",
+              }}
+            >
+              Get Started Free
+              <ArrowRight size={18} strokeWidth={2.2} aria-hidden />
+            </Link>
+          </div>
+        </section>
+
         {/* Features */}
         <section
           style={{
@@ -354,28 +523,30 @@ export function LandingPage() {
             <h2
               className="recrux-heading"
               style={{
-                fontSize: 13,
+                fontSize: "clamp(18px, 4vw, 22px)",
                 fontWeight: 700,
-                letterSpacing: "0.06em",
-                textTransform: "uppercase",
-                color: R.deep,
+                color: R.darkest,
                 textAlign: "center",
-                margin: "0 0 8px",
+                margin: "0 auto 12px",
+                maxWidth: 720,
+                lineHeight: 1.25,
               }}
             >
-              What you get
+              Resume analysis, skill gap insights &amp; smarter AI job matching
             </h2>
             <p
               style={{
-                fontSize: 20,
-                fontWeight: 600,
-                color: R.darkest,
+                fontSize: "clamp(15px, 3.5vw, 17px)",
+                fontWeight: 500,
+                color: R.deep,
                 textAlign: "center",
-                margin: "0 0 36px",
-                fontFamily: "var(--font-heading)",
+                margin: "0 auto 36px",
+                maxWidth: 640,
+                lineHeight: 1.55,
               }}
             >
-              Everything in one calm workspace
+              Everything for your tech job search in one calm workspace—live roles, match signals, saved and applied
+              tracking, and resume tools side by side.
             </p>
             <div
               style={{
@@ -453,8 +624,11 @@ export function LandingPage() {
 
         {/* Steps + CTA */}
         <section style={{ padding: "56px 20px 64px", maxWidth: 720, margin: "0 auto", textAlign: "center" }}>
-          <h2 className="recrux-heading" style={{ fontSize: 24, fontWeight: 700, color: R.darkest, margin: "0 0 28px" }}>
-            Start in three steps
+          <h2
+            className="recrux-heading"
+            style={{ fontSize: "clamp(20px, 4.5vw, 24px)", fontWeight: 700, color: R.darkest, margin: "0 0 28px" }}
+          >
+            Start your tech job search in three steps
           </h2>
           <ol
             style={{
@@ -466,12 +640,21 @@ export function LandingPage() {
             }}
           >
             {[
-              "Create your free account and set your target field.",
-              "Upload a resume or paste skills so matches mean something.",
-              "Browse jobs, save favorites, and apply with your stats in view.",
+              {
+                title: "Create your free account",
+                body: "Set your target field so AI job matching and recommendations stay relevant.",
+              },
+              {
+                title: "Upload your resume for analysis",
+                body: "We extract skills and gaps so match scores and skill gap insights reflect your real profile.",
+              },
+              {
+                title: "Browse, save, and apply with clarity",
+                body: "Use live listings, shortlists, and application tracking while you refine your resume for each role.",
+              },
             ].map((step, i) => (
               <li
-                key={i}
+                key={step.title}
                 style={{
                   display: "flex",
                   gap: 16,
@@ -498,7 +681,12 @@ export function LandingPage() {
                 >
                   {i + 1}
                 </span>
-                <p style={{ fontSize: 16, color: R.deep, margin: "6px 0 0", lineHeight: 1.5 }}>{step}</p>
+                <div style={{ minWidth: 0 }}>
+                  <h3 className="recrux-heading" style={{ fontSize: 16, fontWeight: 700, color: R.darkest, margin: "4px 0 6px" }}>
+                    {step.title}
+                  </h3>
+                  <p style={{ fontSize: 15, color: R.deep, margin: 0, lineHeight: 1.5 }}>{step.body}</p>
+                </div>
               </li>
             ))}
           </ol>
@@ -523,40 +711,7 @@ export function LandingPage() {
           </Link>
         </section>
 
-        <footer
-          style={{
-            borderTop: hairline,
-            padding: "24px 20px 32px",
-            background: "rgba(255,255,255,0.5)",
-          }}
-        >
-          <div
-            style={{
-              maxWidth: 1040,
-              margin: "0 auto",
-              display: "flex",
-              flexWrap: "wrap",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: 16,
-            }}
-          >
-            <span className="recrux-heading" style={{ fontSize: 15, fontWeight: 600, color: R.primary }}>
-              rec<span style={{ fontStyle: "italic" }}>r</span>ux
-            </span>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 20, fontSize: 13 }}>
-              <Link to="/signin" style={{ color: R.body, textDecoration: "none", fontWeight: 500 }}>
-                Sign in
-              </Link>
-              <Link to="/signup" style={{ color: R.body, textDecoration: "none", fontWeight: 500 }}>
-                Sign up
-              </Link>
-            </div>
-            <p style={{ fontSize: 12, color: R.body, margin: 0, width: "100%", textAlign: "center" }}>
-              © {new Date().getFullYear()} Recrux. Built for focused job seekers.
-            </p>
-          </div>
-        </footer>
+        <SiteFooter showAuthLinks showWordmark />
       </main>
 
       <style>{`
@@ -605,6 +760,58 @@ export function LandingPage() {
             flex: 1 1 0;
             max-width: 340px;
             min-width: 200px;
+          }
+        }
+        @media (max-width: 520px) {
+          .landing-hero-cta {
+            flex-direction: column;
+            align-items: stretch;
+            width: 100%;
+            max-width: 360px;
+            margin-left: auto;
+            margin-right: auto;
+          }
+          .landing-hero-cta a {
+            justify-content: center;
+            width: 100%;
+            box-sizing: border-box;
+          }
+          .landing-header .landing-header-actions {
+            gap: 6px;
+          }
+        }
+
+        .landing-how-grid {
+          display: grid;
+          grid-template-columns: 1fr;
+          gap: 16px;
+          margin-top: 32px;
+        }
+        @media (min-width: 900px) {
+          .landing-how-grid {
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+          }
+        }
+        .landing-how-card {
+          transition: transform 0.22s ease, box-shadow 0.22s ease;
+        }
+        @media (hover: hover) and (pointer: fine) {
+          .landing-how-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 12px 32px rgba(4, 44, 83, 0.12);
+          }
+        }
+        @media (max-width: 520px) {
+          .landing-how-cta-wrap {
+            width: 100%;
+            max-width: 360px;
+            margin-left: auto;
+            margin-right: auto;
+          }
+          .landing-how-cta {
+            width: 100%;
+            box-sizing: border-box;
           }
         }
       `}</style>

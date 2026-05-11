@@ -12,6 +12,7 @@ const tabs = [
   { label: "Resume", to: "/resume" },
   { label: "Progress", to: "/progress" },
   { label: "Roadmap", to: "/roadmap" },
+  { label: "Pricing", to: "/pricing" },
   { label: "Settings", to: "/settings" },
 ];
 

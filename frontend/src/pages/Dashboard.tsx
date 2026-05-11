@@ -477,17 +477,36 @@ export function Dashboard() {
           </div>
 
           <div style={{ textAlign: "center", paddingTop: 12 }}>
-            <Link
-              to="/jobs"
-              style={{
-                fontSize: 13,
-                fontWeight: 600,
-                color: R.primary,
-                textDecoration: "none",
-              }}
-            >
-              See all high-match jobs &gt;
-            </Link>
+            <div style={{ display: "flex", justifyContent: "center", flexWrap: "wrap", gap: 12 }}>
+              <Link
+                to="/jobs"
+                style={{
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: R.primary,
+                  textDecoration: "none",
+                  padding: "6px 0",
+                }}
+              >
+                See all high-match jobs &gt;
+              </Link>
+
+              <Link
+                to="/pricing"
+                style={{
+                  fontSize: 13,
+                  fontWeight: 700,
+                  color: "#ffffff",
+                  textDecoration: "none",
+                  background: R.primary,
+                  padding: "8px 14px",
+                  borderRadius: 999,
+                  boxShadow: "0 2px 10px rgba(24, 95, 165, 0.22)",
+                }}
+              >
+                View pricing
+              </Link>
+            </div>
           </div>
         </div>
       </div>

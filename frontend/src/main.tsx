@@ -20,6 +20,10 @@ import { AppliedJobs } from "./pages/AppliedJobs";
 import { Settings } from "./pages/Settings";
 import { Roadmap } from "./pages/Roadmap";
 import { OnboardingFlow } from "./components/onboarding/OnboardingFlow";
+import { PrivacyPolicy } from "./pages/PrivacyPolicy";
+import { TermsOfService } from "./pages/TermsOfService";
+import { Contact } from "./pages/Contact";
+import { Pricing } from "./pages/Pricing";
 
 function AppRoutes() {
   const { user, loading } = useAuth();
@@ -48,6 +52,25 @@ function AppRoutes() {
         path="/"
         element={authed ? <Navigate to="/dashboard" replace /> : <LandingPage />}
       />
+      <Route path="/privacy" element={<PrivacyPolicy />} />
+      <Route path="/terms" element={<TermsOfService />} />
+      <Route path="/contact" element={<Contact />} />
+      {/* Public (logged-out): renders with its own header/footer */}
+      {!authed && <Route path="/pricing" element={<Pricing />} />}
+      {/* Authenticated: renders inside AppShell so the dashboard navbar stays */}
+      {authed && (
+        <Route
+          path="/pricing"
+          element={
+            <ProtectedRoute>
+              <AppShell>
+                <Pricing standalone={false} />
+              </AppShell>
+            </ProtectedRoute>
+          }
+        />
+      )}
+
       <Route path="/signin" element={<SignIn />} />
       <Route path="/signup" element={<SignUp />} />
       <Route path="/get-started" element={<OnboardingFlow />} />

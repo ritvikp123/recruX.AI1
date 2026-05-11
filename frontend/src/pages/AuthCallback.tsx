@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { SiteFooter } from "../components/SiteFooter";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../context/AuthContext";
 import { persistOnboardingPreferences, readOnboardingDraft, clearOnboardingDraft } from "../lib/onboardingPreferences";
@@ -52,9 +53,12 @@ export function AuthCallback() {
   }, [navigate, setSessionFromAuth, initialHash]);
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-js-brand-bg">
-      <div className="h-8 w-8 animate-spin rounded-full border-2 border-js-brand-primary border-t-transparent" />
-      <p className="mt-4 text-sm text-js-brand-deep">{message}</p>
+    <div className="flex min-h-screen flex-col bg-js-brand-bg">
+      <div className="flex flex-1 flex-col items-center justify-center px-4">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-js-brand-primary border-t-transparent" />
+        <p className="mt-4 text-sm text-js-brand-deep">{message}</p>
+      </div>
+      <SiteFooter surface="auth" />
     </div>
   );
 }

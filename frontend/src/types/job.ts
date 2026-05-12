@@ -1,11 +1,11 @@
-/** Normalized job for Recrux UI (JSearch or mock) */
+/** Normalized job for Recrux UI (live Apify scrape, RAG backend, or mock) */
 export interface Job {
   id: string;
   title: string;
   company: string;
   location: string;
   description: string;
-  /** From JSearch when available */
+  /** When the listing source provides a logo URL */
   employerLogo?: string;
   applyUrl?: string;
   salaryMin?: number;

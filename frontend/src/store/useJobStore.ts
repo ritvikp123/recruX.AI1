@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { searchJSearchJobs } from "../lib/jsearch";
+import { searchApifyAllJobs } from "../lib/apifyAllJobs";
 import { searchJobs } from "../lib/api";
 import { mapJobListingToJob } from "../lib/jobListingMap";
 import { applyJob, removeSavedJob, saveJob, fetchSavedJobs, fetchAppliedJobs } from "../lib/savedJobsApi";
@@ -144,7 +144,7 @@ export const useJobStore = create<JobState>((set, get) => ({
         ...j,
         matchScore: computeMatch(resumeText, j),
       }));
-      // Single page only — extra pages cost another API call; jsearch client caps rows per request.
+      // Single page only — extra pages cost another Apify run; client caps rows per request.
       const hasMore = false;
       if (append) {
         const prev = get().jobs;
@@ -172,18 +172,19 @@ export const useJobStore = create<JobState>((set, get) => ({
 
     try {
       const { resumeSkills } = get();
-      const list = await searchJSearchJobs({
+      const list = await searchApifyAllJobs({
         query: filters.query || "Software Engineer",
         remoteOnly: filters.remoteOnly,
         employmentType: filters.employmentType,
-        page: nextPage
+        location: filters.location,
+        page: nextPage,
       });
       return applyList(list);
     } catch (err: unknown) {
       const msg =
         err instanceof Error
           ? err.message
-          : "Could not load jobs from JSearch.";
+          : "Could not load jobs from Apify (All Jobs Scraper).";
       try {
         const { resumeSkills } = get();
         const { jobs: listings } = await searchJobs({
@@ -255,12 +256,13 @@ export const useJobStore = create<JobState>((set, get) => ({
       backendErr = err instanceof Error ? err.message : "Could not reach the backend.";
     }
 
-    // Fall back to the same live listings source as /jobs (JSearch).
+    // Fall back to the same live listings source as /jobs (Apify All Jobs Scraper).
     try {
-      const live = await searchJSearchJobs({
+      const live = await searchApifyAllJobs({
         query: filters.query || "Software Engineer",
         remoteOnly: filters.remoteOnly,
         employmentType: filters.employmentType,
+        location: filters.location,
         page: 1,
       });
       if (live.length > 0) {

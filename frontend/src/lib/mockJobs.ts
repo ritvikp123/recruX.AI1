@@ -1,6 +1,6 @@
 import type { Job } from "../types/job";
 
-/** Dev/demo listings from `useJobStore` when JSearch data is unavailable. */
+/** Dev/demo listings from `useJobStore` when live job data is unavailable. */
 export function isMockJobId(id: string | undefined): boolean {
   if (!id) return false;
   return id.startsWith("mock-job-") || id.startsWith("mock-dashboard-");

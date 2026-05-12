@@ -170,7 +170,7 @@ export function computeMatchBreakdown(
   ];
 }
 
-/** Strip simple HTML from job descriptions (JSearch sometimes returns markup). */
+/** Strip simple HTML from job descriptions (some listings return markup). */
 function stripJobHtml(s: string): string {
   return s.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
 }

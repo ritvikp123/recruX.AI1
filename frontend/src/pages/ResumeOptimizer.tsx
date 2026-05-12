@@ -21,6 +21,56 @@ type StoredResume = {
 
 const RESUME_LIBRARY_KEY = "recrux-resume-library-v1";
 const MAX_STORED_RESUMES = 5;
+/** In-memory only when user has resume_text but no library rows yet (not written to resume_library). */
+const PROFILE_FALLBACK_ID = "__profile_resume__";
+
+function isPersistableResume(r: StoredResume): boolean {
+  return r.id !== PROFILE_FALLBACK_ID;
+}
+
+function parseLibraryFromDb(raw: unknown): StoredResume[] {
+  if (!Array.isArray(raw)) return [];
+  const out: StoredResume[] = [];
+  for (const row of raw) {
+    if (!row || typeof row !== "object") continue;
+    const o = row as Record<string, unknown>;
+    const id = typeof o.id === "string" ? o.id : "";
+    if (!id) continue;
+    out.push({
+      id,
+      fileName: String(o.fileName ?? "Resume"),
+      uploadedAt: String(o.uploadedAt ?? new Date().toISOString()),
+      storagePath: String(o.storagePath ?? ""),
+      rawText: String(o.rawText ?? ""),
+      skills: Array.isArray(o.skills) ? o.skills.map(String) : [],
+      summary: String(o.summary ?? ""),
+      experience: String(o.experience ?? ""),
+      skillsText: String(o.skillsText ?? ""),
+      isPrimary: Boolean(o.isPrimary),
+    });
+  }
+  return out;
+}
+
+function makeProfileFallbackResume(
+  resumeText: string,
+  skills: unknown,
+  updatedAt: string | null | undefined
+): StoredResume {
+  const skillsArr = Array.isArray(skills) ? skills.map(String).filter(Boolean) : [];
+  return {
+    id: PROFILE_FALLBACK_ID,
+    fileName: "Saved resume (from your account)",
+    uploadedAt: updatedAt || new Date().toISOString(),
+    storagePath: "",
+    rawText: String(resumeText || ""),
+    skills: skillsArr,
+    summary: "",
+    experience: "",
+    skillsText: skillsArr.length ? skillsArr.join(", ") : "",
+    isPrimary: true,
+  };
+}
 
 function sanitizeFileName(name: string): string {
   return name.replace(/[^a-zA-Z0-9._-]/g, "_");
@@ -77,14 +127,52 @@ export function ResumeOptimizer() {
   }, [user?.id]);
 
   useEffect(() => {
+    let cancelled = false;
     if (!user?.id) {
       setResumeLibrary([]);
-      return;
+      return () => {
+        cancelled = true;
+      };
     }
-    try {
-      const raw = localStorage.getItem(RESUME_LIBRARY_KEY);
-      const all = raw ? (JSON.parse(raw) as Record<string, StoredResume[]>) : {};
-      const list = Array.isArray(all[user.id]) ? all[user.id] : [];
+
+    void (async () => {
+      let list: StoredResume[] = [];
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("resume_library, resume_text, skills, updated_at")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (cancelled) return;
+
+      if (!error && data?.resume_library != null) {
+        list = parseLibraryFromDb(data.resume_library);
+      }
+
+      if (list.length === 0) {
+        try {
+          const raw = localStorage.getItem(RESUME_LIBRARY_KEY);
+          const all = raw ? (JSON.parse(raw) as Record<string, StoredResume[]>) : {};
+          const localList = Array.isArray(all[user.id]) ? all[user.id] : [];
+          const cleaned = localList.filter(isPersistableResume);
+          if (cleaned.length > 0) {
+            list = cleaned;
+            await supabase.from("profiles").upsert({
+              id: user.id,
+              resume_library: list,
+              updated_at: new Date().toISOString(),
+            });
+          }
+        } catch {
+          /* ignore */
+        }
+      }
+
+      if (list.length === 0 && data?.resume_text) {
+        list = [makeProfileFallbackResume(String(data.resume_text), data.skills, data.updated_at)];
+      }
+
+      if (cancelled) return;
       setResumeLibrary(list);
 
       const primary = list.find((r) => r.isPrimary) ?? list[0];
@@ -92,14 +180,50 @@ export function ResumeOptimizer() {
         setResumeText(primary.rawText || "");
         setResumeSkills(Array.isArray(primary.skills) ? primary.skills : []);
       }
-    } catch {
-      setResumeLibrary([]);
-    }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [user?.id, setResumeText, setResumeSkills]);
 
   const saveLibrary = (next: StoredResume[]) => {
     if (!user?.id) return;
     setResumeLibrary(next);
+    const toPersist = next.filter(isPersistableResume);
+    const hasFallbackOnly =
+      toPersist.length === 0 &&
+      next.length > 0 &&
+      next.every((r) => r.id === PROFILE_FALLBACK_ID);
+
+    void (async () => {
+      try {
+        const row: Record<string, unknown> = {
+          id: user.id,
+          updated_at: new Date().toISOString(),
+        };
+        if (toPersist.length > 0) {
+          row.resume_library = toPersist;
+          const p = toPersist.find((r) => r.isPrimary) ?? toPersist[0];
+          row.resume_text = p.rawText || null;
+          row.skills = p.skills?.length ? p.skills : null;
+        } else if (hasFallbackOnly) {
+          const fb = next[0];
+          row.resume_text = fb.rawText || null;
+          row.skills = fb.skills?.length ? fb.skills : null;
+          row.resume_library = [];
+        } else {
+          row.resume_library = [];
+          row.resume_text = null;
+          row.skills = null;
+        }
+        const { error } = await supabase.from("profiles").upsert(row);
+        if (error) console.warn("[ResumeOptimizer] Could not persist resume_library:", error.message);
+      } catch (e) {
+        console.warn("[ResumeOptimizer] persist resume_library failed", e);
+      }
+    })();
+
     try {
       const raw = localStorage.getItem(RESUME_LIBRARY_KEY);
       const all = raw ? (JSON.parse(raw) as Record<string, StoredResume[]>) : {};
@@ -189,6 +313,7 @@ export function ResumeOptimizer() {
           id: user.id,
           resume_text: null,
           skills: null,
+          resume_library: [],
           updated_at: new Date().toISOString(),
         });
       }
@@ -256,7 +381,8 @@ export function ResumeOptimizer() {
       alert("File must be 10MB or smaller.");
       return;
     }
-    if (resumeLibrary.length >= MAX_STORED_RESUMES) {
+    const persistable = resumeLibrary.filter(isPersistableResume);
+    if (persistable.length >= MAX_STORED_RESUMES) {
       alert(`You can store up to ${MAX_STORED_RESUMES} resumes. Delete one to upload a new file.`);
       return;
     }
@@ -377,7 +503,10 @@ export function ResumeOptimizer() {
         skillsText: skillsText || (mergedSkills.length ? mergedSkills.join(", ") : "No skills extracted."),
         isPrimary: true,
       };
-      const next = [entry, ...resumeLibrary.map((r) => ({ ...r, isPrimary: false }))].slice(0, MAX_STORED_RESUMES);
+      const next = [
+        entry,
+        ...resumeLibrary.filter(isPersistableResume).map((r) => ({ ...r, isPrimary: false })),
+      ].slice(0, MAX_STORED_RESUMES);
       saveLibrary(next);
       setLastSelectedFileName(selectedFile.name);
       setShowUploadModal(false);

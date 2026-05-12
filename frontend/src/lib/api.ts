@@ -31,7 +31,11 @@ function explainNetworkFailure(): Error {
       (useDevProxy
         ? "Start backend: cd backend && source .venv/bin/activate && python -m uvicorn main:app --reload --port 8001. "
         : "Set VITE_API_URL on your host (e.g. Vercel) and redeploy. ") +
-      "Sign in for resume routes. From dev, to call Cloud Run: VITE_API_DIRECT=true and VITE_API_URL=<run.app>, restart npm run dev."
+      "Sign in for resume routes (Bearer token required). " +
+      "If the URL is correct but this still fails, open DevTools → Network: a missing CORS origin on Cloud Run " +
+      "(CORS_ORIGINS must include this site's exact origin, e.g. both https://recrux.ai and https://www.recrux.ai) " +
+      "often shows as a failed request, not HTTP 200. " +
+      "From dev, to call Cloud Run: VITE_API_DIRECT=true and VITE_API_URL=<run.app>, restart npm run dev."
   );
 }
 

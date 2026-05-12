@@ -12,7 +12,7 @@ Use this document to **systematically test the web app** before a release. Fill 
 | P1 | Frontend deployed or running; **exact site URL** recorded | | |
 | P2 | `VITE_API_URL` points to the **live FastAPI backend** (HTTPS, no trailing slash issues) | | |
 | P3 | **Supabase** project is configured in the frontend (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`); auth and DB tables exist | | |
-| P4 | **JSearch / RapidAPI:** `VITE_RAPIDAPI_KEY` or `VITE_JSEARCH_API_KEY` is set in **production** frontend env (otherwise Jobs/Dashboard show an error in prod; dev may use mock jobs) | | |
+| P4 | **Apify (live jobs):** `VITE_APIFY_TOKEN` set in **production** frontend build (Jobs/Dashboard live feed); optional `VITE_JOBS_SEARCH_COUNTRY` (exact Apify country label) | | |
 | P5 | Backend has **Vertex** (or configured LLM), **Cloud SQL** / DB reachable, **CORS** includes your frontend origin(s) | | |
 | P6 | Test file available: `docs/test_resume_sample.txt` or a small **PDF/DOCX** resume | | |
 
@@ -70,11 +70,11 @@ Use this document to **systematically test the web app** before a release. Fill 
 | D1 | Load | Open dashboard | Layout: sidebar/nav, stats/cards area loads | | |
 | D2 | Resume-dependent UI | User with no profile resume text | Empty or guided state; no crash | | |
 | D3 | Resume from Supabase | User with `profiles.resume_text` in Supabase | Text/skills hydrate; match bars reflect content | | |
-| D4 | Top matches / preview | With JSearch key configured | List of job cards OR clear error if API fails | | |
+| D4 | Top matches / preview | With Apify token + backend optional | List of job cards OR clear error if API fails | | |
 | D5 | Tabs (e.g. high / saved / recent) | Switch tabs | Correct lists; empty states OK | | |
 | D6 | Save job | Save a job from card | Appears under saved flow / tab | | |
 | D7 | Apply flow | Trigger apply / confirm | Modal or flow completes; job recorded as applied where designed | | |
-| D8 | Error banner | If JSearch missing in prod | User-visible error explains missing API key (not silent blank) | | |
+| D8 | Error banner | If Apify token missing or API fails in prod | User-visible error (not silent blank) | | |
 
 ---
 
@@ -199,7 +199,7 @@ Prefix: **`/api`** (e.g. `{BACKEND_URL}/api/resume/parse`).
 | Area | Tester initials | Date |
 |------|-----------------|------|
 | Auth & routing | | |
-| Jobs & JSearch | | |
+| Jobs & Apify | | |
 | Resume & AI features | | |
 | Chat | | |
 | Supabase persistence | | |
@@ -214,7 +214,8 @@ Prefix: **`/api`** (e.g. `{BACKEND_URL}/api/resume/parse`).
 | `VITE_API_URL` | FastAPI base (e.g. `https://xxx.run.app`) |
 | `VITE_SUPABASE_URL` | Supabase project URL |
 | `VITE_SUPABASE_ANON_KEY` | Supabase anon key |
-| `VITE_RAPIDAPI_KEY` or `VITE_JSEARCH_API_KEY` | JSearch (RapidAPI) for job listings |
+| `VITE_APIFY_TOKEN` | Apify All Jobs Scraper for live job listings |
+| `VITE_JOBS_SEARCH_COUNTRY` | Optional; exact Apify country label |
 
 ## Appendix: Sample test file
 

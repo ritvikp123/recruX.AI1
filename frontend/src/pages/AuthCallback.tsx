@@ -4,6 +4,7 @@ import { SiteFooter } from "../components/SiteFooter";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../context/AuthContext";
 import { persistOnboardingPreferences, readOnboardingDraft, clearOnboardingDraft } from "../lib/onboardingPreferences";
+import { urlIndicatesPasswordRecovery } from "../lib/authRecovery";
 
 /**
  * Supabase OAuth redirects here with tokens in the URL hash.
@@ -13,7 +14,8 @@ export function AuthCallback() {
   const navigate = useNavigate();
   const { setSessionFromAuth } = useAuth();
   const [message, setMessage] = useState("Signing you in…");
-  const [initialHash] = useState(window.location.hash);
+  const [initialHash] = useState(() => (typeof window !== "undefined" ? window.location.hash : ""));
+  const [initialSearch] = useState(() => (typeof window !== "undefined" ? window.location.search : ""));
 
   useEffect(() => {
     let cancelled = false;
@@ -33,10 +35,17 @@ export function AuthCallback() {
               console.warn("Failed to persist onboarding preferences:", err);
             }
           }
-          if (initialHash.includes("type=recovery")) {
-             navigate("/reset-password", { replace: true });
+          const recovery =
+            urlIndicatesPasswordRecovery() ||
+            initialHash.includes("type=recovery") ||
+            initialHash.includes("type%3Drecovery") ||
+            initialSearch.includes("type=recovery") ||
+            initialSearch.includes("type%3Drecovery");
+          if (recovery) {
+            const tail = window.location.hash || window.location.search || initialHash || initialSearch;
+            navigate(`/reset-password${tail}`, { replace: true });
           } else {
-             navigate("/dashboard", { replace: true });
+            navigate("/dashboard", { replace: true });
           }
         } else {
           setMessage("Sign-in was cancelled or failed.");
@@ -50,7 +59,18 @@ export function AuthCallback() {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [navigate, setSessionFromAuth, initialHash]);
+  }, [navigate, setSessionFromAuth, initialHash, initialSearch]);
+
+  useEffect(() => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "PASSWORD_RECOVERY") {
+        navigate("/reset-password", { replace: true });
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, [navigate]);
 
   return (
     <div className="flex min-h-screen flex-col bg-js-brand-bg">

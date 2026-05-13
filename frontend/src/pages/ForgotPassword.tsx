@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Mail, Lock, Eye, EyeOff } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { AuthLayout } from "../components/AuthLayout";
@@ -11,8 +11,12 @@ export function ForgotPassword() {
   const [newPassword, setNewPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const { user } = useAuth();
+  const { user, clearPasswordRecoveryPending } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    clearPasswordRecoveryPending();
+  }, [clearPasswordRecoveryPending]);
 
   const handleSendResetEmail = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,6 +51,7 @@ export function ForgotPassword() {
       setMessage("Failed to update password. Please try again.");
     } else {
       setMessage("Password successfully updated. Redirecting to dashboard...");
+      clearPasswordRecoveryPending();
       setTimeout(() => navigate("/dashboard", { replace: true }), 1500);
     }
   };

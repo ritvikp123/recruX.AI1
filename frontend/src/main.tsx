@@ -5,7 +5,7 @@ import "./styles.css";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { AppShell } from "./components/AppShell";
-import { LandingPage } from "./pages/LandingPage";
+import { RootIndexRoute } from "./components/RootIndexRoute";
 import { SignIn } from "./pages/SignIn";
 import { SignUp } from "./pages/SignUp";
 import { ForgotPassword } from "./pages/ForgotPassword";
@@ -48,10 +48,7 @@ function AppRoutes() {
 
   return (
     <Routes>
-      <Route
-        path="/"
-        element={authed ? <Navigate to="/dashboard" replace /> : <LandingPage />}
-      />
+      <Route path="/" element={<RootIndexRoute />} />
       <Route path="/privacy" element={<PrivacyPolicy />} />
       <Route path="/terms" element={<TermsOfService />} />
       <Route path="/contact" element={<Contact />} />

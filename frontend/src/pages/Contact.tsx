@@ -6,6 +6,11 @@ import { Mail, MessageSquare, User } from "lucide-react";
 
 const hairline = `0.5px solid ${R.border}`;
 
+/** Inbox for contact form (mailto + on-page links). Override with `VITE_CONTACT_EMAIL` on your host build. */
+const CONTACT_EMAIL =
+  ((import.meta.env.VITE_CONTACT_EMAIL as string | undefined)?.trim() || "annikap@synergyers.com").trim() ||
+  "annikap@synergyers.com";
+
 export function Contact() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -24,6 +29,16 @@ export function Contact() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!name.trim() || !email.trim() || !message.trim()) {
+      window.alert("Please fill in your name, email, and message.");
+      return;
+    }
+    const subject = encodeURIComponent(`Recrux.ai contact from ${name.trim()}`);
+    const body = encodeURIComponent(
+      `Name: ${name.trim()}\nReply-to: ${email.trim()}\n\nMessage:\n${message.trim()}`
+    );
+    const url = `mailto:${CONTACT_EMAIL}?subject=${subject}&body=${body}`;
+    window.location.href = url;
     setSubmitted(true);
   };
 
@@ -55,11 +70,11 @@ export function Contact() {
         >
           {submitted ? (
             <p style={{ fontSize: 15, lineHeight: 1.55, margin: 0, color: R.deep }}>
-              Thanks for reaching out. This demo form doesn&apos;t send email yet—please write to{" "}
-              <a href="mailto:hello@recrux.ai" style={{ color: R.primary, fontWeight: 600 }}>
-                hello@recrux.ai
-              </a>{" "}
-              and we&apos;ll get back to you.
+              Thanks—your email app should have opened with a draft to{" "}
+              <a href={`mailto:${CONTACT_EMAIL}`} style={{ color: R.primary, fontWeight: 600 }}>
+                {CONTACT_EMAIL}
+              </a>
+              . If nothing opened, copy that address and send your message manually. We&apos;ll reply when we can.
             </p>
           ) : (
             <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -174,11 +189,11 @@ export function Contact() {
                 Send message
               </button>
               <p style={{ fontSize: 12, color: R.body, margin: 0, lineHeight: 1.45 }}>
-                Prefer email?{" "}
-                <a href="mailto:hello@recrux.ai" style={{ color: R.primary, fontWeight: 600 }}>
-                  hello@recrux.ai
+                You can also email{" "}
+                <a href={`mailto:${CONTACT_EMAIL}`} style={{ color: R.primary, fontWeight: 600 }}>
+                  {CONTACT_EMAIL}
                 </a>{" "}
-                (placeholder—replace with your real support address).
+                directly.
               </p>
             </form>
           )}

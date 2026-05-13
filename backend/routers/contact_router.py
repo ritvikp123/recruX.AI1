@@ -31,6 +31,15 @@ def _strip_html(s: str) -> str:
     return re.sub(r"<[^>]+>", "", s)
 
 
+@router.get("/contact")
+async def contact_health() -> dict[str, str]:
+    """So GET https://…/api/contact returns 200 (verifies deploy + path; form uses POST)."""
+    return {
+        "service": "recrux-contact",
+        "hint": "POST JSON body: name, email, message. Configure RESEND_API_KEY on the server.",
+    }
+
+
 @router.post("/contact")
 async def submit_contact(body: ContactPayload) -> dict[str, Any]:
     api_key = (os.getenv("RESEND_API_KEY") or "").strip()

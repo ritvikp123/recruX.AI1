@@ -6,6 +6,8 @@
  * Set VITE_API_DIRECT=true to use VITE_API_URL in dev (e.g. test production API).
  *
  * Production build: uses VITE_API_URL (e.g. Cloud Run HTTPS).
+ * Use the **service origin only** (no `/api` suffix), e.g. `https://recruix-backend-xxx.run.app`.
+ * If `VITE_API_URL` accidentally ends with `/api`, we strip it so paths stay `/api/contact`, not `/api/api/contact` (404).
  */
 
 import { supabase } from "./supabase";
@@ -15,8 +17,13 @@ const useDevProxy = Boolean(env.DEV) && env.VITE_API_DIRECT !== "true";
 
 function resolvedApiOrigin(): string {
   if (useDevProxy) return "";
-  const raw = (env.VITE_API_URL as string | undefined)?.trim();
-  return raw && raw.length > 0 ? raw.replace(/\/$/, "") : "http://localhost:8001";
+  let raw = (env.VITE_API_URL as string | undefined)?.trim();
+  if (!raw) return "http://localhost:8001";
+  raw = raw.replace(/\/+$/, "");
+  if (/\/api$/i.test(raw)) {
+    raw = raw.replace(/\/api$/i, "");
+  }
+  return raw;
 }
 
 const API_ORIGIN = resolvedApiOrigin();

@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 import { PublicLegalLayout } from "../components/PublicLegalLayout";
 import { applyPageSeo, resetDocumentSeoToHome } from "../lib/pageSeo";
+import { submitContact } from "../lib/api";
 import { R } from "../recrux/theme";
 import { Mail, MessageSquare, User } from "lucide-react";
 
 const hairline = `0.5px solid ${R.border}`;
 
-/** Inbox for contact form (mailto + on-page links). Override with `VITE_CONTACT_EMAIL` on your host build. */
+/** Shown for “email us directly” link only (inbox is configured on the backend as CONTACT_EMAIL_TO). */
 const CONTACT_EMAIL =
   ((import.meta.env.VITE_CONTACT_EMAIL as string | undefined)?.trim() || "annikap@synergyers.com").trim() ||
   "annikap@synergyers.com";
@@ -16,6 +17,8 @@ export function Contact() {
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     applyPageSeo({
@@ -27,19 +30,29 @@ export function Contact() {
     return () => resetDocumentSeoToHome();
   }, []);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
     if (!name.trim() || !email.trim() || !message.trim()) {
-      window.alert("Please fill in your name, email, and message.");
+      setError("Please fill in your name, email, and message.");
       return;
     }
-    const subject = encodeURIComponent(`Recrux.ai contact from ${name.trim()}`);
-    const body = encodeURIComponent(
-      `Name: ${name.trim()}\nReply-to: ${email.trim()}\n\nMessage:\n${message.trim()}`
-    );
-    const url = `mailto:${CONTACT_EMAIL}?subject=${subject}&body=${body}`;
-    window.location.href = url;
-    setSubmitted(true);
+    setSubmitting(true);
+    try {
+      await submitContact({
+        name: name.trim(),
+        email: email.trim(),
+        message: message.trim(),
+      });
+      setSubmitted(true);
+      setName("");
+      setEmail("");
+      setMessage("");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -70,14 +83,26 @@ export function Contact() {
         >
           {submitted ? (
             <p style={{ fontSize: 15, lineHeight: 1.55, margin: 0, color: R.deep }}>
-              Thanks—your email app should have opened with a draft to{" "}
-              <a href={`mailto:${CONTACT_EMAIL}`} style={{ color: R.primary, fontWeight: 600 }}>
-                {CONTACT_EMAIL}
-              </a>
-              . If nothing opened, copy that address and send your message manually. We&apos;ll reply when we can.
+              Thanks—your message was sent. We&apos;ll get back to you when we can.
             </p>
           ) : (
-            <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <form onSubmit={(e) => void handleSubmit(e)} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              {error ? (
+                <p
+                  role="alert"
+                  style={{
+                    margin: 0,
+                    fontSize: 14,
+                    color: "#b42318",
+                    background: "rgba(180, 35, 24, 0.08)",
+                    border: "1px solid rgba(180, 35, 24, 0.25)",
+                    borderRadius: 10,
+                    padding: "10px 12px",
+                  }}
+                >
+                  {error}
+                </p>
+              ) : null}
               <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 <span style={{ fontSize: 12, fontWeight: 600, color: R.darkest }}>Name</span>
                 <div
@@ -171,6 +196,7 @@ export function Contact() {
               </label>
               <button
                 type="submit"
+                disabled={submitting}
                 style={{
                   marginTop: 4,
                   border: "none",
@@ -179,14 +205,14 @@ export function Contact() {
                   fontSize: 15,
                   fontWeight: 600,
                   color: "#fff",
-                  background: R.primary,
-                  cursor: "pointer",
-                  boxShadow: "0 4px 14px rgba(24, 95, 165, 0.35)",
+                  background: submitting ? "#94a3b8" : R.primary,
+                  cursor: submitting ? "not-allowed" : "pointer",
+                  boxShadow: submitting ? "none" : "0 4px 14px rgba(24, 95, 165, 0.35)",
                   width: "100%",
                   fontFamily: "inherit",
                 }}
               >
-                Send message
+                {submitting ? "Sending…" : "Send message"}
               </button>
               <p style={{ fontSize: 12, color: R.body, margin: 0, lineHeight: 1.45 }}>
                 You can also email{" "}

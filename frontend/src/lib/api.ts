@@ -90,6 +90,26 @@ async function handleResponse<T>(res: Response): Promise<T> {
   return res.text() as unknown as T;
 }
 
+/** Same as handleResponse but never signs the user out (for public endpoints like /contact). */
+async function handleResponsePublic<T>(res: Response): Promise<T> {
+  if (!res.ok) {
+    const text = await res.text();
+    let msg = text;
+    try {
+      const json = JSON.parse(text);
+      msg = json.detail || json.message || text;
+    } catch {
+      /* use raw text */
+    }
+    throw new Error(typeof msg === "string" ? msg : JSON.stringify(msg));
+  }
+  const ct = res.headers.get("content-type");
+  if (ct?.includes("application/json")) {
+    return res.json() as Promise<T>;
+  }
+  return res.text() as unknown as T;
+}
+
 async function request<T>(
   path: string,
   init: RequestInit & { omitContentType?: boolean } = {}
@@ -104,6 +124,27 @@ async function request<T>(
     headers,
   });
   return handleResponse<T>(res);
+}
+
+/** Public contact form → backend sends email (Resend). Optional auth header if logged in. */
+export async function submitContact(payload: {
+  name: string;
+  email: string;
+  message: string;
+}): Promise<{ ok: boolean; id?: string }> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  if (session?.access_token) {
+    headers["Authorization"] = `Bearer ${session.access_token}`;
+  }
+  const res = await fetchApi("/contact", {
+    method: "POST",
+    headers,
+    body: JSON.stringify(payload),
+  });
+  return handleResponsePublic<{ ok: boolean; id?: string }>(res);
 }
 
 /** Chat and other callers that build fetch URL manually */

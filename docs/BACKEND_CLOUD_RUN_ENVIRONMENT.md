@@ -33,6 +33,18 @@ No JSON key file is required if the Cloud Run **service account** has Vertex acc
 
 ---
 
+## Contact form (`POST /api/contact`)
+
+Sends email via **[Resend](https://resend.com/)** (no `mailto:`). Public route; no login required.
+
+| Name | Secret? | Notes |
+|------|-----------|--------|
+| **`RESEND_API_KEY`** | Yes | Create at Resend → API Keys. Required or contact returns **503**. |
+| **`CONTACT_EMAIL_TO`** | No | Inbox receiving submissions. Default `annikap@synergyers.com`. |
+| **`CONTACT_EMAIL_FROM`** | No | Must be allowed by Resend (verified domain or `Recrux <onboarding@resend.dev>` for testing). |
+
+---
+
 ## OpenAI (when provider = `openai`)
 
 | Name | Secret? |

@@ -8,6 +8,7 @@ load_dotenv()
 
 from routers.agent_router import router as agent_router
 from routers.auth_router import router as auth_router
+from routers.contact_router import router as contact_router
 
 app = FastAPI(
     title="Recrux.AI Agents Backend",
@@ -51,6 +52,7 @@ app.add_middleware(
 
 # Include API routers
 app.include_router(auth_router, prefix="/api/auth")
+app.include_router(contact_router, prefix="/api")
 app.include_router(agent_router, prefix="/api")
 
 @app.get("/", tags=["Health"])
